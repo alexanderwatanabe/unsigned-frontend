@@ -1,0 +1,52 @@
+:root {
+  --primary-color: #1a1a1a;
+  --background-color: #ffffff;
+  --text-color: #333333;
+  --border-color: #e0e0e0;
+}
+
+body {
+  font-family: 'JetBrains Mono', monospace;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+nav {
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+nav a {
+  color: var(--text-color);
+  text-decoration: none;
+  margin-right: 2rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 2rem;
+  padding: 2rem 0;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.filters {
+  display: flex;
+  gap: 1rem;
+  margin: 2rem 0;
+  flex-wrap: wrap;
+} 
