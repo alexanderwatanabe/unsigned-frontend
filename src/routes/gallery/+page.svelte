@@ -32,8 +32,8 @@
   let filteredTotalItems = totalItems;
   let pendingFilters: Filter[] = [];
 
-  // Add available page sizes
-  const pageSizes = [4, 9, 16, 25, 36, 49, 64, 81, 100];
+  // Update page sizes to go up to 10000
+  const pageSizes = [4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225, 256];
 
   // Update property labels to be more generic
   const propertyLabels: Record<string, string> = {
@@ -61,6 +61,8 @@
   };
 
   const MAX_FILTERS = 6;
+
+  let displayItemsPerPage = itemsPerPage;
 
   onMount(async () => {
     await loadMetadata();
@@ -221,13 +223,14 @@
 
 <div class="filters">
   <h3>Filters</h3>
+  
   <button 
     on:click={addFilter} 
     disabled={pendingFilters.length >= MAX_FILTERS}
   >
     Add Filter {pendingFilters.length}/{MAX_FILTERS}
   </button>
-  
+
   <div class="filter-list">
     {#each pendingFilters as filter, index}
       <div class="filter-row">
@@ -253,26 +256,32 @@
     {/each}
   </div>
 
-  <div class="filter-actions">
-    <button 
-      on:click={applyFilters} 
-      disabled={pendingFilters.length === 0 || 
-        pendingFilters.every(f => 
+  {#if pendingFilters.length > 0}
+    <div class="filter-actions">
+      <button 
+        on:click={applyFilters} 
+        disabled={pendingFilters.every(f => 
           f.color === 'ANY' && 
           f.distribution === 'ANY' && 
           f.multiplier === 'ANY' && 
           f.rotation === 'ANY'
         )}
-      class="primary"
-    >
-      Apply Filters
-    </button>
-    <button 
-      on:click={clearFilters}
-      disabled={pendingFilters.length === 0 && activeFilters.length === 0}
-    >
-      Clear All
-    </button>
+        class="primary"
+      >
+        Apply Filters
+      </button>
+      <button 
+        on:click={clearFilters}
+      >
+        Clear All
+      </button>
+    </div>
+  {/if}
+
+  <div class="filter-results">
+    {#if activeFilters.length > 0}
+      <p>Found {filteredTotalItems.toLocaleString()} items</p>
+    {/if}
   </div>
 </div>
 
@@ -305,18 +314,19 @@
     {/if}
   </div>
 
+  <hr class="separator small" />
+
   <div class="items-per-page">
-    <span>Items per page: </span>
-    <div class="size-buttons">
-      {#each pageSizes as size}
-        <button 
-          class:selected={itemsPerPage === size}
-          on:click={() => updateItemsPerPage(size)}
-        >
-          {size}
-        </button>
-      {/each}
-    </div>
+    <span>Items per page: {displayItemsPerPage}</span>
+    <input 
+      type="range"
+      min="0"
+      max={pageSizes.length - 1}
+      step="1"
+      value={pageSizes.indexOf(itemsPerPage)}
+      on:input={(e) => displayItemsPerPage = pageSizes[parseInt(e.target.value)]}
+      on:change={(e) => updateItemsPerPage(pageSizes[parseInt(e.target.value)])}
+    />
   </div>
 
   <div class="pagination" class:hidden={randomMode}>
@@ -498,23 +508,6 @@
     background-color: var(--error-color-hover, #a9a9a9);
   }
 
-  .filter-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-
-  .primary {
-    background-color: var(--primary-color, #4a90e2);
-    color: white;
-    border: none;
-    flex: 1;
-  }
-
-  .primary:disabled {
-    background-color: var(--primary-color-disabled, #a8c9f2);
-  }
-
   .view-controls {
     margin-top: 2rem;
     display: flex;
@@ -562,33 +555,16 @@
 
   .items-per-page {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 1rem;
-  }
-
-  .size-buttons {
-    display: flex;
     gap: 0.5rem;
+    width: 100%;
+    max-width: 400px;
   }
 
-  .size-buttons button {
-    padding: 0.25rem 0.5rem;
-    min-width: 2.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .size-buttons button.selected {
-    background: var(--primary-color, #4a90e2);
-    color: white;
-    border-color: var(--primary-color, #4a90e2);
-  }
-
-  .size-buttons button:hover:not(.selected) {
-    background: #f0f0f0;
+  .items-per-page input[type="range"] {
+    width: 100%;
+    margin: 0.5rem 0;
   }
 
   .separator {
@@ -596,6 +572,36 @@
     border-top: 1px solid #e5e5e5;
     margin: 2rem auto;
     width: 100%;
-    max-width: 800px;
+    max-width: 400px;
+  }
+
+  .separator.small {
+    margin: 1rem auto;
+  }
+
+  .filter-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .filter-actions button.primary {
+    background-color: var(--primary-color, #4a90e2);
+    color: white;
+  }
+
+  .filter-actions button.primary:hover:not(:disabled) {
+    background-color: var(--primary-color-hover, #357abd);
+  }
+
+  .filter-results {
+    text-align: center;
+    color: var(--text-color-secondary, #666);
+  }
+
+  .filter-results p {
+    margin: 0;
   }
 </style> 
