@@ -1,7 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import type { LayoutData } from './$types';
-  
+  import { injectAnalytics } from '@vercel/analytics/sveltekit'
   export let data: LayoutData;
 </script>
 
