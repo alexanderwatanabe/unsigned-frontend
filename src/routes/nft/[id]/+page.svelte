@@ -6,11 +6,22 @@
   import { invalidate, goto } from '$app/navigation';
   
   let isFullscreen = false;
+  let imageLoading = true;
   
   function handleKeydown(event) {
     if (event.key.toLowerCase() === 'f') {
       isFullscreen = !isFullscreen;
+    } else if (event.key === 'ArrowLeft') {
+      navigateToNft(Number(id) - 1);
+    } else if (event.key === 'ArrowRight') {
+      navigateToNft(Number(id) + 1);
+    } else if (event.key === 'Escape' && isFullscreen) {
+      isFullscreen = false;
     }
+  }
+
+  function handleImageLoad() {
+    imageLoading = false;
   }
 
   onMount(() => {
@@ -49,10 +60,15 @@
          on:click|preventDefault={() => navigateToNft(Number(id) - 1)}>←</a>
          
       <div class="image-container">
+        {#if imageLoading}
+          <div class="spinner"></div>
+        {/if}
         <img 
           src={isFullscreen ? imageUrls.high : imageUrls.standard} 
           alt={`NFT ${id}`}
-          key={id} />
+          key={id}
+          on:load={handleImageLoad}
+          class:loading={imageLoading} />
       </div>
       
       <a href="/nft/{Number(id) + 1}" 
@@ -121,6 +137,7 @@
   }
 
   .image-container {
+    position: relative;
     flex: 1;
     max-width: 1200px;
   }
@@ -217,5 +234,32 @@
     max-width: 800px;
     margin-left: auto;
     margin-right: auto;
+  }
+
+  .spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+  }
+
+  @keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  img.loading {
+    opacity: 0.5;
+    transition: opacity 0.3s;
+  }
+
+  img {
+    opacity: 1;
+    transition: opacity 0.3s;
   }
 </style> 
