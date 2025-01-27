@@ -7,8 +7,8 @@
 
 <nav>
   <a href="/">unsigned_algorithms</a>
-  <a href="/gallery">Gallery</a>
-  <a href="/about">About</a>
+  <a href="/gallery">gallery</a>
+  <a href="/about">about</a>
 </nav>
 
 <main class="container">
