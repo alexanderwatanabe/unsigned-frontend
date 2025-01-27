@@ -13,4 +13,16 @@ export interface UnsigData {
 
 export type UnsigsData = {
   [key: string]: UnsigData;
+}
+
+export interface UnsigMetadata {
+  id: number;
+  name: string;
+  description: string;
+  properties: {
+    colors: string[];
+    distributions: string[];
+    rotations: string[];
+    multipliers: string[];
+  };
 } 

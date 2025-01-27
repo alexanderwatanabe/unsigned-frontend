@@ -9,6 +9,12 @@
 		"src/routes/+layout.ts",
 		"src/routes/+layout.server.ts"
 	],
+	"/api/items": [
+		"src/routes/api/items/+server.ts"
+	],
+	"/api/metadata": [
+		"src/routes/api/metadata/+server.ts"
+	],
 	"/gallery": [
 		"src/routes/+layout.ts",
 		"src/routes/+layout.server.ts"
