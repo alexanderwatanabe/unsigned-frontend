@@ -20,7 +20,7 @@
 
   let items: UnsigItem[] = [];
   let currentPage = 1;
-  let itemsPerPage = 16;
+  let itemsPerPage = 25;
   let totalItems = 31119;
   let totalPages = Math.ceil(totalItems / itemsPerPage);
   let randomMode = false;
@@ -208,6 +208,10 @@
   }
 </script>
 
+<svelte:head>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</svelte:head>
+
 <div class="grid" style="--grid-size: {gridSize}">
   {#each items as item}
     <a href="/nft/{item.id}" class="grid-item">
@@ -222,14 +226,14 @@
 <hr class="separator" />
 
 <div class="filters">
-  <h3>Filters</h3>
-  
-  <button 
-    on:click={addFilter} 
-    disabled={pendingFilters.length >= MAX_FILTERS}
-  >
-    Add Filter {pendingFilters.length}/{MAX_FILTERS}
-  </button>
+  <div class="add-filter-container">
+    <button 
+      on:click={addFilter} 
+      disabled={pendingFilters.length >= MAX_FILTERS}
+    >
+      Add Filter {pendingFilters.length}/{MAX_FILTERS}
+    </button>
+  </div>
 
   <div class="filter-list">
     {#each pendingFilters as filter, index}
@@ -349,6 +353,10 @@
 </div>
 
 <style>
+  :global(*) {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(var(--grid-size), 1fr);
@@ -389,7 +397,6 @@
     color: white;
     font-size: 1rem;
     font-weight: 500;
-    font-family: monospace;
   }
 
   .grid-item:hover .overlay {
@@ -446,10 +453,12 @@
   }
 
   .filter-list {
-    margin: 1rem 0;
+    margin: 1rem auto;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    width: 100%;
+    max-width: 800px;
   }
 
   .filter-row {
@@ -583,8 +592,9 @@
     display: flex;
     gap: 1rem;
     justify-content: center;
-    margin-top: 1rem;
-    margin-bottom: 1rem;
+    margin: 1rem auto;
+    width: 100%;
+    max-width: 800px;
   }
 
   .filter-actions button.primary {
@@ -603,5 +613,11 @@
 
   .filter-results p {
     margin: 0;
+  }
+
+  .add-filter-container {
+    display: flex;
+    justify-content: center;
+    width: 100%;
   }
 </style> 
