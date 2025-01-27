@@ -152,28 +152,34 @@
     position: relative;
     display: inline-block;
     margin: 2rem 0;
+    max-width: 100%;
+    width: fit-content;
   }
 
   .image-container img {
     max-width: 100%;
     height: auto;
+    display: block;
   }
 
   .metadata-overlay {
     display: none;
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 5%;
+    left: 5%;
+    right: 5%;
+    bottom: 5%;
     background: rgba(0, 0, 0, 0.9);
     color: #cccccc;
     overflow: auto;
     padding: 1rem;
     text-align: left;
     font-family: monospace;
-    font-size: 0.8rem;
+    font-size: 0.5rem;
+    line-height: 1.1;
     white-space: pre-wrap;
+    box-sizing: border-box;
+    border-radius: 4px;
   }
 
   .image-container:hover .metadata-overlay {
@@ -182,5 +188,6 @@
 
   code {
     white-space: pre;
+    font-size: 0.5rem;
   }
 </style> 
