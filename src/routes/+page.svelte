@@ -67,11 +67,11 @@
     color: white;
     text-decoration: none;
     border-radius: 4px;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
   }
 
   .cta:hover {
-    background: var(--primary-color-dark);
+    background: #666666;
     transform: translateY(-1px);
   }
 
