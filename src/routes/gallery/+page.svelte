@@ -654,8 +654,7 @@
   }
 
   .id-search input {
-    width: 100%;
-    max-width: 400px;
+    width: 200px;
     padding: 0.75rem;
     border: 1px solid var(--border-color);
     border-radius: 4px;
