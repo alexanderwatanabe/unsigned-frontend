@@ -660,6 +660,7 @@
     border-radius: 4px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 1rem;
+    text-align: center;
   }
 
   .id-search input:focus {
