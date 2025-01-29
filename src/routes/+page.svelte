@@ -1,131 +1,53 @@
 <script lang="ts">
   import type { PageData } from './$types';
+  import { unsigMetadata } from '$lib/data/metadata';
   
   export let data: PageData;
   
-  // Access the unsigs data
   const unsigs = data.unsigs;
-
-  let heroImage = "https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/1024/00000.png";
+  const heroImage = "https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/1024/00000.png";
   
-  const metadata = JSON.stringify({
-    "0e14267a8020229adc0184dd25fa3174c3f7d6caadcb4425c70e7c04": {
-      "unsig00000": {
-         files: [
-            {
-               code: {
-                  file: "unsig.py",
-                  mediatype: "text/python",
-                  src: [
-                     "import numpy as np",
-                     "from PIL import Image",
-                     "",
-                     "",
-                     "#pixel dimension",
-                     "dim = 4096",
-                     "",
-                     "#replace the content inside {} with your unsig's properties",
-                     "unsig = {'index': 0,",
-                     "         'num_props': 0,",
-                     "         'properties': {",
-                     "             'multipliers'   : [],",
-                     "             'colors'        : [],",
-                     "             'distributions' : [],",
-                     "             'rotations'     : []}}",
-                     "",
-                     "def norm(x , mean , std):",
-                     "    p = (np.pi*std) * np.exp(-0.5*((x-mean)/std)**2)",
-                     "    return p",
-                     "",
-                     "def scale_make2d(s):",
-                     "    scaled = np.interp(s, (s.min(), s.max()), (0, u_range))",
-                     "    two_d = np.tile(scaled, (dim, 1))",
-                     "    return two_d",
-                     "",
-                     "def gen_nft(nft):",
-                     "    idx = unsig['index']",
-                     "    props = unsig['properties']",
-                     "    props['multipliers']=list(map(float, props['multipliers']))",
-                     "    props['rotations']=list(map(int, props['rotations']))",
-                     "",
-                     "    n = np.zeros((dim, dim, 3)).astype(np.uint32)",
-                     "",
-                     "    for i in range(unsig['num_props']):",
-                     "        mult = props['multipliers'][i]",
-                     "        col = props['colors'][i]",
-                     "        dist = props['distributions'][i]",
-                     "        rot = props['rotations'][i]",
-                     "        c = channels[col]",
-                     "        buffer =  mult * np.rot90(dists[dist], k=(rot / 90))",
-                     "        n[ :, :, c ] = n[ :, :, c ] + buffer",
-                     "",
-                     "    n = np.interp(n, (0, u_range), (0, 255)).astype(np.uint8)",
-                     "",
-                     "    return (idx, n)",
-                     "",
-                     "if __name__ == '__main__':",
-                     "    #setup",
-                     "    x = list(range(dim))",
-                     "    u_range = 4294967293",
-                     "    mean = np.mean(x)",
-                     "    std = dim/6",
-                     "",
-                     "    #probability and cumulative distribution",
-                     "    p_1d = np.array(norm(x, mean, std)).astype(np.uint32)",
-                     "    c_1d = np.cumsum(p_1d)",
-                     "",
-                     "    #2d arrays",
-                     "    p_2d = scale_make2d(p_1d)",
-                     "    c_2d = scale_make2d(c_1d)",
-                     "",
-                     "    #dicts for retrieving values",
-                     "    dists = {'Normal': p_2d, 'CDF': c_2d}",
-                     "    channels = {'Red': 0, 'Green': 1, 'Blue': 2}",
-                     "",
-                     "    #make your nft",
-                     "    i, nft = gen_nft(unsig)",
-                     "",
-                     "    img = Image.fromarray(nft)",
-                     "    img.save(f'unsig_{i:05d}.png')"
-                  ]
-               },
-               env: {
-                  file: "unsig.yml",
-                  mediatype: "text/conda",
-                  src: [
-                     "name: unsig",
-                     "channels:",
-                     "  - defaults",
-                     "dependencies:",
-                     "  - python=3.8.10=hdb3f193_7",
-                     "  - numpy=1.20.2=py38h2d18471_0",
-                     "  - pillow=8.2.0=py38he98fc37_0"
-                  ]
-               }
-            }
-         ],
-         image: "ipfs://QmTBKj1y1CXNaZzBWHtSiAWbuUTHUgT1h7NEUDSmaCxBdJ",
-         series: "unsigned_algorithms",
-         title: "unsig_00000"
-      }
-   }
-  }, null, 2);
+  // Format metadata without initial indentation
+  const metadata = unsigMetadata.trimStart();
+
+  function handleExploreClick() {
+    // Add any click handling logic here
+  }
 </script>
 
-<div class="hero">
-  <h1>unsigned_algorithms</h1>
-  <p>An exploration of generative art and blockchain technology</p>
-  <div class="image-container">
-    <img src={heroImage} alt="Hero NFT" />
-    <pre class="metadata-overlay"><code>{metadata}</code></pre>
-  </div>
-  <a href="/gallery" class="cta">Explore Collection</a>
-</div>
+<main>
+  <section class="hero">
+    <h1>unsigned_algorithms</h1>
+    <p class="subtitle">An exploration of generative art and blockchain technology</p>
+    
+    <div class="image-container" role="img" aria-label="Hero NFT with metadata overlay">
+      <img 
+        src={heroImage} 
+        alt="unsigned_algorithms NFT" 
+        loading="eager"
+      />
+      <pre class="metadata-overlay" aria-hidden="true">
+        <code>{metadata}</code>
+      </pre>
+    </div>
+
+    <a 
+      href="/gallery" 
+      class="cta"
+      on:click={handleExploreClick}
+      role="button"
+    >
+      Explore Collection
+    </a>
+  </section>
+</main>
 
 <style>
   .hero {
     text-align: center;
-    padding: 4rem 0;
+    padding: 2rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
   }
 
   h1 {
@@ -136,7 +58,6 @@
   img {
     max-width: 100%;
     height: auto;
-    margin: 2rem 0;
   }
 
   .cta {
@@ -146,14 +67,22 @@
     color: white;
     text-decoration: none;
     border-radius: 4px;
+    transition: background-color 0.3s ease;
+  }
+
+  .cta:hover {
+    background: var(--primary-color-dark);
+    transform: translateY(-1px);
   }
 
   .image-container {
     position: relative;
     display: inline-block;
-    margin: 2rem 0;
-    max-width: 100%;
+    margin: 2rem 2rem;
+    max-width: 90%;
     width: fit-content;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
   }
 
   .image-container img {
@@ -163,7 +92,7 @@
   }
 
   .metadata-overlay {
-    display: none;
+    display: block;
     position: absolute;
     top: 5%;
     left: 5%;
@@ -175,19 +104,43 @@
     padding: 1rem;
     text-align: left;
     font-family: monospace;
-    font-size: 0.5rem;
-    line-height: 1.1;
+    font-size: 0.4rem;
+    line-height: 1.0;
     white-space: pre-wrap;
     box-sizing: border-box;
     border-radius: 4px;
+    transition: opacity 0.5s ease;
+    opacity: 0;
+    pointer-events: none;
   }
 
   .image-container:hover .metadata-overlay {
-    display: block;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   code {
     white-space: pre;
     font-size: 0.5rem;
+  }
+
+  .subtitle {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+  }
+
+  @media (max-width: 768px) {
+    h1 {
+      font-size: 2rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+    }
+
+    code {
+      font-size: 0.4rem;
+    }
   }
 </style> 

@@ -24,6 +24,7 @@
   let totalItems = 31119;
   let totalPages = Math.ceil(totalItems / itemsPerPage);
   let randomMode = false;
+  let idSearch = '';
   
   // Add filter-related state
   let availableProperties: string[] = [];
@@ -104,6 +105,12 @@
     return `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/${imageSize}/${paddedIndex}.png`;
   }
 
+  function filterByIdSearch(index: number): boolean {
+    if (!idSearch) return true;
+    const paddedIndex = index.toString().padStart(5, '0');
+    return paddedIndex.includes(idSearch);
+  }
+
   async function loadPage(page: number) {
     const start = (page - 1) * itemsPerPage;
     const remainingItems = Math.max(0, filteredTotalItems - start);
@@ -113,6 +120,10 @@
       const queryParams = new URLSearchParams();
       queryParams.set('page', page.toString());
       queryParams.set('limit', itemsPerPage.toString());
+      
+      if (idSearch) {
+        queryParams.set('idSearch', idSearch);
+      }
       
       activeFilters.forEach(filter => {
         if (filter.color !== 'ANY') queryParams.append('filters', `colors:${filter.color}`);
@@ -230,6 +241,15 @@
 </div>
 
 <hr class="separator" />
+
+<div class="id-search">
+  <input
+    type="text"
+    placeholder="Search by ID"
+    bind:value={idSearch}
+    on:input={() => loadPage(1)}
+  />
+</div>
 
 <div class="filters">
   <div class="add-filter-container">
@@ -625,5 +645,27 @@
     display: flex;
     justify-content: center;
     width: 100%;
+  }
+
+  .id-search {
+    margin: 2rem auto;
+    max-width: 800px;
+    text-align: center;
+  }
+
+  .id-search input {
+    width: 100%;
+    max-width: 400px;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+  }
+
+  .id-search input:focus {
+    outline: none;
+    border-color: var(--primary-color, #4a90e2);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
   }
 </style> 

@@ -5,23 +5,57 @@
   import type { PageData } from './$types';
   import { invalidate, goto } from '$app/navigation';
   
-  let isFullscreen = false;
-  let imageLoading = true;
+  // Add type safety for the image URLs
+  interface ImageUrls {
+    low: string;
+    standard: string;
+    high: string;
+    ultra: string;
+  }
+
+  // Group related state
+  interface State {
+    isFullscreen: boolean;
+    imageLoading: boolean;
+  }
   
-  function handleKeydown(event) {
+  let state: State = {
+    isFullscreen: false,
+    imageLoading: true
+  };
+
+  // Add constants for better maintainability
+  const IMAGE_BASE_URL = 'https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images';
+  
+  // Improve the image URLs construction
+  function constructImageUrls(paddedId: string, id: string): ImageUrls {
+    return {
+      low: `${IMAGE_BASE_URL}/128/${paddedId}.png?v=${id}`,
+      standard: `${IMAGE_BASE_URL}/1024ds/${paddedId}.png?v=${id}`,
+      high: `${IMAGE_BASE_URL}/4096/${paddedId}.png?v=${id}`,
+      ultra: `${IMAGE_BASE_URL}/16384/${paddedId}.png?v=${id}`
+    };
+  }
+
+  // Add validation for navigation
+  function isValidNftId(id: number): boolean {
+    return id >= 0 && id < Object.keys(unsigs).length;
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
     if (event.key.toLowerCase() === 'f') {
-      isFullscreen = !isFullscreen;
+      state.isFullscreen = !state.isFullscreen;
     } else if (event.key === 'ArrowLeft') {
-      navigateToNft(Number(id) - 1);
+      navigateToNft(Number(currentId) - 1);
     } else if (event.key === 'ArrowRight') {
-      navigateToNft(Number(id) + 1);
-    } else if (event.key === 'Escape' && isFullscreen) {
-      isFullscreen = false;
+      navigateToNft(Number(currentId) + 1);
+    } else if (event.key === 'Escape' && state.isFullscreen) {
+      state.isFullscreen = false;
     }
   }
 
   function handleImageLoad() {
-    imageLoading = false;
+    state.imageLoading = false;
   }
 
   onMount(() => {
@@ -31,53 +65,48 @@
     };
   });
   
-  $: id = $page.params.id;
-  $: paddedId = id.padStart(5, '0');
-  $: unsig = getUnsig(Number(id));
+  // Use more descriptive names for reactive declarations
+  $: currentId = $page.params.id;
+  $: paddedId = currentId.padStart(5, '0');
+  $: currentUnsig = getUnsig(currentId);
+  $: imageUrls = constructImageUrls(paddedId, currentId);
   
-  $: imageUrls = {
-    standard: `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/1024ds/${paddedId}.png?v=${id}`,
-    high: `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/4096/${paddedId}.png?v=${id}`,
-    ultra: `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/16384/${paddedId}.png?v=${id}`
-  };
-
-
   async function navigateToNft(newId: number) {
-    if (newId >= 0 && newId < Object.keys(unsigs).length) {
+    if (isValidNftId(newId)) {
       await goto(`/nft/${newId}`, { invalidateAll: true });
     }
   }
 </script>
 
-<div class="nft-detail" class:fullscreen={isFullscreen}>
+<div class="nft-detail" class:fullscreen={state.isFullscreen}>
   <div class="content-wrapper">
-    <h1 class:hidden={isFullscreen}>unsigned_algorithm #{paddedId}</h1>
+    <h1 class:hidden={state.isFullscreen}>unsigned_algorithm #{paddedId}</h1>
     
-    <div class="image-section" class:fullscreen={isFullscreen}>
-      <a href="/nft/{Number(id) - 1}" 
+    <div class="image-section" class:fullscreen={state.isFullscreen}>
+      <a href="/nft/{Number(currentId) - 1}" 
          class="nav-button prev" 
-         class:hidden={isFullscreen}
-         on:click|preventDefault={() => navigateToNft(Number(id) - 1)}>←</a>
+         class:hidden={state.isFullscreen}
+         on:click|preventDefault={() => navigateToNft(Number(currentId) - 1)}>←</a>
          
       <div class="image-container">
-        {#if imageLoading}
+        {#if state.imageLoading}
           <div class="spinner"></div>
         {/if}
         <img 
-          src={isFullscreen ? imageUrls.high : imageUrls.standard} 
-          alt={`NFT ${id}`}
-          key={id}
+          src={state.isFullscreen ? imageUrls.high : imageUrls.standard} 
+          alt={`NFT ${currentId}`}
+          data-key={currentId}
           on:load={handleImageLoad}
-          class:loading={imageLoading} />
+          class:loading={state.imageLoading} />
       </div>
       
-      <a href="/nft/{Number(id) + 1}" 
+      <a href="/nft/{Number(currentId) + 1}" 
          class="nav-button next" 
-         class:hidden={isFullscreen}
-         on:click|preventDefault={() => navigateToNft(Number(id) + 1)}>→</a>
+         class:hidden={state.isFullscreen}
+         on:click|preventDefault={() => navigateToNft(Number(currentId) + 1)}>→</a>
     </div>
 
-    <div class="metadata" class:hidden={isFullscreen}>
+    <div class="metadata" class:hidden={state.isFullscreen}>
       <h2>Properties</h2>
       <div class="properties">
         <table>
@@ -91,13 +120,13 @@
             </tr>
           </thead>
           <tbody>
-            {#each Object.entries(unsig.properties)[0][1] as property, i}
+            {#each Object.entries(currentUnsig.properties)[0][1] as property, i}
               <tr>
                 <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
-                <td>{unsig.properties.colors[i] ?? ''}</td>
-                <td>{unsig.properties.distributions[i] ?? ''}</td>
-                <td>{unsig.properties.multipliers[i] ?? ''}</td>
-                <td>{unsig.properties.rotations[i] ?? ''}</td>
+                <td>{currentUnsig.properties.colors[i] ?? ''}</td>
+                <td>{currentUnsig.properties.distributions[i] ?? ''}</td>
+                <td>{currentUnsig.properties.multipliers[i] ?? ''}</td>
+                <td>{currentUnsig.properties.rotations[i] ?? ''}</td>
               </tr>
             {/each}
           </tbody>
@@ -105,8 +134,8 @@
       </div>
       <h2>Download</h2>
       <div class="download-links">
-        <a href={imageUrls.high} target="_blank">4K Version</a>
-        <a href={imageUrls.ultra} target="_blank">16K Version</a>
+        <a href={imageUrls.high} target="_blank">4,096 px</a>
+        <a href={imageUrls.ultra} target="_blank">16,384 px</a>
       </div>
     </div>
   </div>

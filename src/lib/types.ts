@@ -17,8 +17,6 @@ export type UnsigsData = {
 
 export interface UnsigMetadata {
   id: number;
-  name: string;
-  description: string;
   properties: {
     colors: string[];
     distributions: string[];

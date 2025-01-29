@@ -16,19 +16,13 @@ export async function loadUnsigs() {
 export function getUnsigMetadata(): UnsigMetadata[] {
   const data = unsigsData as UnsigsData;
   
-  return Object.entries(data).map(([id, unsig]) => {
-    const properties: Record<string, string[]> = {
+  return Object.entries(data).map(([id, unsig]) => ({
+    id: parseInt(id),
+    properties: {
       colors: unsig.properties.colors,
       distributions: unsig.properties.distributions,
       rotations: unsig.properties.rotations.map(r => r.toString()),
       multipliers: unsig.properties.multipliers.map(m => m.toString())
-    };
-
-    return {
-      id: parseInt(id),
-      name: `Unsig #${id}`,
-      description: `Unsig #${id}`,
-      properties
-    };
-  });
+    }
+  }));
 } 
