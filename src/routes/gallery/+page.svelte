@@ -188,10 +188,16 @@
   async function loadRandomItems() {
     randomMode = true;
     const randomIndexes = getRandomIndexes(itemsPerPage, totalItems);
+    
     items = randomIndexes.map(index => ({
       id: index,
       imageUrl: getImageUrl(index),
-      properties: {} as UnsigMetadata['properties']
+      properties: {
+        colors: [],
+        distributions: [],
+        multipliers: [],
+        rotations: []
+      }
     }));
   }
   
