@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { unsigs, getUnsig } from '$lib/unsigs';
+  import { generateUnsig, unsigToImageData, createUnsig } from '$lib/unsig/generator';
   import type { PageData } from './$types';
   import { invalidate, goto } from '$app/navigation';
   
@@ -17,25 +18,26 @@
   interface State {
     isFullscreen: boolean;
     imageLoading: boolean;
+    currentLayer: number;
+    isRendering: boolean;
+    isComplete: boolean;
+    layers: {
+      imageUrl: string;
+      opacity: number;
+      zIndex: number;
+    }[];
   }
   
   let state: State = {
     isFullscreen: false,
-    imageLoading: true
+    imageLoading: true,
+    currentLayer: 0,
+    isRendering: false,
+    isComplete: false,
+    layers: []
   };
 
-  // Add constants for better maintainability
-  const IMAGE_BASE_URL = 'https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images';
-  
-  // Improve the image URLs construction
-  function constructImageUrls(paddedId: string, id: string): ImageUrls {
-    return {
-      low: `${IMAGE_BASE_URL}/128/${paddedId}.png?v=${id}`,
-      standard: `${IMAGE_BASE_URL}/1024ds/${paddedId}.png?v=${id}`,
-      high: `${IMAGE_BASE_URL}/4096/${paddedId}.png?v=${id}`,
-      ultra: `${IMAGE_BASE_URL}/16384/${paddedId}.png?v=${id}`
-    };
-  }
+  let canvas: HTMLCanvasElement;
 
   // Add validation for navigation
   function isValidNftId(id: number): boolean {
@@ -58,10 +60,140 @@
     state.imageLoading = false;
   }
 
+  async function generateImage(unsig: any, size: number = 2048, layersToRender?: number) {
+    if (!unsig || !canvas) return;
+    
+    try {
+      // Create a properly formatted unsig object with limited properties
+      const numLayers = layersToRender ?? unsig.num_props;
+      console.log(`Rendering ${numLayers} layers of ${unsig.num_props} total`);
+      
+      const formattedUnsig = createUnsig(
+        Number(unsig.index), 
+        {
+          multipliers: unsig.properties.multipliers.slice(0, numLayers).map(Number),
+          colors: unsig.properties.colors.slice(0, numLayers),
+          distributions: unsig.properties.distributions.slice(0, numLayers),
+          rotations: unsig.properties.rotations.slice(0, numLayers).map(Number)
+        }
+      );
+
+      // Generate the image data
+      const { imageData } = generateUnsig(formattedUnsig, size);
+      
+      // Convert to ImageData for canvas
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Set canvas size
+      canvas.width = size;
+      canvas.height = size;
+      
+      // Draw the image data
+      const imgData = unsigToImageData(imageData, size);
+      ctx.putImageData(imgData, 0, 0);
+      
+      // Convert canvas to data URL and preload the new image
+      const newImageUrl = canvas.toDataURL('image/png');
+      
+      // Preload the new image before adding it to layers
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = newImageUrl;
+      });
+
+      return newImageUrl;
+    } catch (error) {
+      console.error('Error generating image:', error);
+      console.error('Unsig data:', unsig);
+    }
+  }
+
+  async function renderProgressively(unsig: any, size: number) {
+    if (!unsig || state.isRendering) return;
+    
+    try {
+      state.isRendering = true;
+      state.isComplete = false;
+      state.currentLayer = 0;
+      state.layers = [];
+      
+      console.log(`Starting progressive render for unsig ${unsig.index} with ${unsig.num_props} layers`);
+      
+      // Start with black background at highest z-index
+      state.layers = [{
+        imageUrl: '',  // Empty black layer
+        opacity: 1,
+        zIndex: unsig.num_props * 2  // Double the z-index range to ensure proper stacking
+      }];
+
+      // Generate each layer
+      for (let i = 1; i <= unsig.num_props; i++) {
+        state.currentLayer = i;
+        console.log(`Rendering layer ${i} of ${unsig.num_props}`);
+        
+        // Generate current layer
+        const newImageUrl = await generateImage(unsig, size, i);
+        if (!newImageUrl) continue;
+
+        // Add new layer with z-index matching its layer number
+        state.layers = [
+          ...state.layers,
+          {
+            imageUrl: newImageUrl,
+            opacity: 0,  // Start invisible
+            zIndex: i * 2  // Use even numbers for layer z-indices
+          }
+        ];
+
+        // Small delay for DOM update
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Fade in new layer
+        const newLayer = state.layers[state.layers.length - 1];
+        newLayer.opacity = 1;
+        
+        // Find the top-most visible layer (should be the black overlay or previous layer)
+        const topLayer = state.layers.find(l => l.opacity === 1 && l.zIndex > i * 2);
+        if (topLayer) {
+          // For black background, use shorter delay and wait time
+          const isBlackBackground = !topLayer.imageUrl;
+          const fadeDelay = isBlackBackground ? 100 : 500;
+          const transitionWait = isBlackBackground ? 500 : 3000;
+          
+          // Wait before starting to fade out the top layer
+          await new Promise(resolve => setTimeout(resolve, fadeDelay));
+          topLayer.opacity = 0;
+          
+          // Wait for transition to complete
+          await new Promise(resolve => setTimeout(resolve, transitionWait));
+          
+          // Remove the faded out layer
+          state.layers = state.layers.filter(layer => layer.opacity > 0);
+        }
+      }
+      
+      state.isComplete = true;
+    } catch (error) {
+      console.error('Error in progressive render:', error);
+    } finally {
+      state.isRendering = false;
+    }
+  }
+
   onMount(() => {
     document.addEventListener('keydown', handleKeydown);
+    // Generate initial image progressively
+    if (currentUnsig && !state.isRendering && !state.isComplete) {
+      console.log('Initial render on mount');
+      renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+    }
     return () => {
       document.removeEventListener('keydown', handleKeydown);
+      state.isRendering = false;
+      state.isComplete = false;
     };
   });
   
@@ -69,12 +201,64 @@
   $: currentId = $page.params.id;
   $: paddedId = currentId.padStart(5, '0');
   $: currentUnsig = getUnsig(currentId);
-  $: imageUrls = constructImageUrls(paddedId, currentId);
+  
+  // Watch for changes that require regenerating the image
+  $: if (currentUnsig && canvas && !state.isRendering && !state.isComplete) {
+    console.log('Unsig changed, starting new render');
+    renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+  }
+  
+  // Only re-render on fullscreen toggle
+  $: if (canvas && !state.isRendering && state.isComplete && state.layers.length > 0) {
+    const targetSize = state.isFullscreen ? 4096 : 2048;
+    const currentSize = canvas.width;
+    
+    if (currentSize !== targetSize) {
+      console.log(`Resolution change needed: ${currentSize} -> ${targetSize}`);
+      state.isComplete = false;  // Reset completion state for new render
+      renderProgressively(currentUnsig, targetSize);
+    }
+  }
   
   async function navigateToNft(newId: number) {
     if (isValidNftId(newId)) {
       await goto(`/nft/${newId}`, { invalidateAll: true });
     }
+  }
+
+  // Function to download the generated image
+  function downloadImage(size: number) {
+    if (!currentUnsig) return;
+    
+    // Create a temporary canvas for the download
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Set canvas size
+    tempCanvas.width = size;
+    tempCanvas.height = size;
+    
+    // Generate high-res version
+    const formattedUnsig = createUnsig(
+      Number(currentUnsig.index),
+      {
+        multipliers: currentUnsig.properties.multipliers.map(Number),
+        colors: currentUnsig.properties.colors,
+        distributions: currentUnsig.properties.distributions,
+        rotations: currentUnsig.properties.rotations.map(Number)
+      }
+    );
+    
+    const { imageData } = generateUnsig(formattedUnsig, size);
+    const imgData = unsigToImageData(imageData, size);
+    ctx.putImageData(imgData, 0, 0);
+    
+    // Create download link
+    const link = document.createElement('a');
+    link.download = `unsig_${paddedId}_${size}px.png`;
+    link.href = tempCanvas.toDataURL('image/png');
+    link.click();
   }
 </script>
 
@@ -89,15 +273,21 @@
          on:click|preventDefault={() => navigateToNft(Number(currentId) - 1)}>←</a>
          
       <div class="image-container">
-        {#if state.imageLoading}
+        <canvas 
+          bind:this={canvas} 
+          style="display: none;"
+        ></canvas>
+        {#if state.imageLoading && state.layers.length === 0}
           <div class="spinner"></div>
         {/if}
-        <img 
-          src={state.isFullscreen ? imageUrls.high : imageUrls.standard} 
-          alt={`NFT ${currentId}`}
-          data-key={currentId}
-          on:load={handleImageLoad}
-          class:loading={state.imageLoading} />
+        {#each state.layers as layer (layer.imageUrl || 'black-overlay')}
+          <img 
+            src={layer.imageUrl}
+            alt={`NFT ${currentId} layer`}
+            class="layer"
+            style="opacity: {layer.opacity}; z-index: {layer.zIndex};"
+            on:load={handleImageLoad} />
+        {/each}
       </div>
       
       <a href="/nft/{Number(currentId) + 1}" 
@@ -120,13 +310,13 @@
             </tr>
           </thead>
           <tbody>
-            {#each Object.entries(currentUnsig.properties)[0][1] as property, i}
+            {#each Array(currentUnsig.num_props) as _, i}
               <tr>
                 <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
-                <td>{currentUnsig.properties.colors[i] ?? ''}</td>
-                <td>{currentUnsig.properties.distributions[i] ?? ''}</td>
-                <td>{currentUnsig.properties.multipliers[i] ?? ''}</td>
-                <td>{currentUnsig.properties.rotations[i] ?? ''}</td>
+                <td>{currentUnsig.properties.colors[i]}</td>
+                <td>{currentUnsig.properties.distributions[i]}</td>
+                <td>{currentUnsig.properties.multipliers[i]}</td>
+                <td>{currentUnsig.properties.rotations[i]}</td>
               </tr>
             {/each}
           </tbody>
@@ -134,8 +324,8 @@
       </div>
       <h2>Download</h2>
       <div class="download-links">
-        <a href={imageUrls.high} target="_blank">4,096 px</a>
-        <a href={imageUrls.ultra} target="_blank">16,384 px</a>
+        <button on:click={() => downloadImage(4096)}>4,096 px</button>
+        <button on:click={() => downloadImage(16384)}>16,384 px</button>
       </div>
     </div>
   </div>
@@ -169,11 +359,27 @@
     position: relative;
     flex: 1;
     max-width: 1200px;
+    aspect-ratio: 1;
+    background: black;
   }
 
-  .image-container img {
+  .layer {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: auto;
+    height: 100%;
+    object-fit: contain;
+    transition: opacity 3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    will-change: opacity;
+    backface-visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* Add a subtle fade effect for the black background */
+  .layer:not([src]) {
+    background: black;
+    transition: opacity 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
   }
 
   .metadata {
@@ -272,23 +478,30 @@
     transform: translate(-50%, -50%);
     width: 50px;
     height: 50px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
     border-radius: 50%;
-    border-top-color: #fff;
-    animation: spin 1s ease-in-out infinite;
+    animation: spin 1s linear infinite;
   }
 
   @keyframes spin {
-    to { transform: translate(-50%, -50%) rotate(360deg); }
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
   }
 
-  img.loading {
+  .loading {
     opacity: 0.5;
-    transition: opacity 0.3s;
   }
 
-  img {
-    opacity: 1;
-    transition: opacity 0.3s;
+  .download-links button {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background: none;
+    color: var(--text-color);
+    cursor: pointer;
+  }
+
+  .download-links button:hover {
+    background: rgba(128, 128, 128, 0.1);
   }
 </style> 
