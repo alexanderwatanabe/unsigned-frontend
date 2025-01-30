@@ -27,6 +27,8 @@
       zIndex: number;
     }[];
     activeLayerIndices: Set<number>;  // Track which layers are active
+    isGeneratingLargeImage: boolean;  // Add this to track large image generation
+    generationProgress: number;  // Add this to track progress
   }
   
   let state: State = {
@@ -36,7 +38,9 @@
     isRendering: false,
     isComplete: false,
     layers: [],
-    activeLayerIndices: new Set()  // Will be initialized with all layers active
+    activeLayerIndices: new Set(),
+    isGeneratingLargeImage: false,
+    generationProgress: 0
   };
 
   let canvas: HTMLCanvasElement;
@@ -287,16 +291,30 @@
   // Watch for changes that require regenerating the image
   $: if (currentUnsig && canvas && !state.isRendering && !state.isComplete) {
     console.log('Unsig changed, starting new render');
-    // Only do progressive render for initial load or navigation
-    if (state.layers.length === 0) {
-      renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+    // Special case for unsig 00000
+    if (currentUnsig.index === 0) {
+      // Just render a black canvas
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const size = state.isFullscreen ? 4096 : 2048;
+        canvas.width = size;
+        canvas.height = size;
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, size, size);
+        state.isComplete = true;
+      }
     } else {
-      transitionToNewState();
+      // Only do progressive render for initial load or navigation
+      if (state.layers.length === 0) {
+        renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+      } else {
+        transitionToNewState();
+      }
     }
   }
   
-  // Only re-render on fullscreen toggle
-  $: if (canvas && !state.isRendering && state.isComplete && state.layers.length > 0) {
+  // Only re-render on fullscreen toggle for non-zero unsigs
+  $: if (currentUnsig && currentUnsig.index !== 0 && canvas && !state.isRendering && state.isComplete && state.layers.length > 0) {
     const targetSize = state.isFullscreen ? 4096 : 2048;
     const currentSize = canvas.width;
     
@@ -304,6 +322,18 @@
       console.log(`Resolution change needed: ${currentSize} -> ${targetSize}`);
       state.isComplete = false;  // Reset completion state for new render
       renderProgressively(currentUnsig, targetSize);
+    }
+  }
+
+  // Special case for unsig 00000 fullscreen toggle
+  $: if (currentUnsig && currentUnsig.index === 0 && canvas && !state.isRendering) {
+    const size = state.isFullscreen ? 4096 : 2048;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      canvas.width = size;
+      canvas.height = size;
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, size, size);
     }
   }
   
@@ -326,38 +356,117 @@
   }
 
   // Function to download the generated image
-  function downloadImage(size: number) {
+  async function downloadImage(size: number) {
     if (!currentUnsig) return;
     
-    // Create a temporary canvas for the download
-    const tempCanvas = document.createElement('canvas');
-    const ctx = tempCanvas.getContext('2d');
-    if (!ctx) return;
+    // Show warning for large downloads
+    if (size > 4096) {
+      const shouldProceed = confirm(
+        `Warning: Generating a ${size}x${size} image requires significant memory and processing power. ` +
+        `This might take several minutes. Do you want to continue?`
+      );
+      if (!shouldProceed) return;
+    }
     
-    // Set canvas size
-    tempCanvas.width = size;
-    tempCanvas.height = size;
-    
-    // Generate high-res version
-    const formattedUnsig = createUnsig(
-      Number(currentUnsig.index),
-      {
-        multipliers: currentUnsig.properties.multipliers.map(Number),
-        colors: currentUnsig.properties.colors,
-        distributions: currentUnsig.properties.distributions,
-        rotations: currentUnsig.properties.rotations.map(Number)
+    try {
+      state.isGeneratingLargeImage = true;
+      state.generationProgress = 0;
+
+      // Create a temporary canvas for the download
+      const tempCanvas = document.createElement('canvas');
+      const ctx = tempCanvas.getContext('2d');
+      if (!ctx) return;
+      
+      // Set canvas size
+      tempCanvas.width = size;
+      tempCanvas.height = size;
+      
+      // Fill with black initially
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, size, size);
+      
+      // Generate high-res version
+      const formattedUnsig = createUnsig(
+        Number(currentUnsig.index),
+        {
+          multipliers: currentUnsig.properties.multipliers.map(Number),
+          colors: currentUnsig.properties.colors,
+          distributions: currentUnsig.properties.distributions,
+          rotations: currentUnsig.properties.rotations.map(Number)
+        }
+      );
+
+      // For large images, split the rendering into chunks
+      const CHUNK_SIZE = 4096;  // Process 4096x4096 chunks at a time
+      const numChunks = Math.ceil(size / CHUNK_SIZE);
+      const totalChunks = numChunks * numChunks;
+      let completedChunks = 0;
+
+      // Special case for unsig 00000
+      if (currentUnsig.index === 0) {
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, size, size);
+        state.generationProgress = 100;
+      } else {
+        for (let y = 0; y < numChunks; y++) {
+          for (let x = 0; x < numChunks; x++) {
+            const chunkWidth = Math.min(CHUNK_SIZE, size - x * CHUNK_SIZE);
+            const chunkHeight = Math.min(CHUNK_SIZE, size - y * CHUNK_SIZE);
+            
+            // Generate chunk
+            const { imageData } = generateUnsig(formattedUnsig, CHUNK_SIZE);
+            const chunkData = unsigToImageData(imageData, CHUNK_SIZE);
+            
+            // Create a temporary canvas for the chunk
+            const chunkCanvas = document.createElement('canvas');
+            chunkCanvas.width = CHUNK_SIZE;
+            chunkCanvas.height = CHUNK_SIZE;
+            const chunkCtx = chunkCanvas.getContext('2d');
+            if (!chunkCtx) continue;
+            
+            // Draw chunk
+            chunkCtx.putImageData(chunkData, 0, 0);
+            
+            // Scale and draw chunk to main canvas
+            ctx.drawImage(
+              chunkCanvas,
+              0, 0, CHUNK_SIZE, CHUNK_SIZE,
+              x * CHUNK_SIZE, y * CHUNK_SIZE, chunkWidth, chunkHeight
+            );
+            
+            // Update progress
+            completedChunks++;
+            state.generationProgress = Math.round((completedChunks / totalChunks) * 100);
+            
+            // Allow browser to process other tasks
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
       }
-    );
-    
-    const { imageData } = generateUnsig(formattedUnsig, size);
-    const imgData = unsigToImageData(imageData, size);
-    ctx.putImageData(imgData, 0, 0);
-    
-    // Create download link
-    const link = document.createElement('a');
-    link.download = `unsig_${paddedId}_${size}px.png`;
-    link.href = tempCanvas.toDataURL('image/png');
-    link.click();
+      
+      // Create download link
+      const link = document.createElement('a');
+      link.download = `unsig_${paddedId}_${size}px.png`;
+      
+      // Use blob to handle large files
+      const blob = await new Promise<Blob>(resolve => {
+        tempCanvas.toBlob(blob => {
+          if (blob) resolve(blob);
+        }, 'image/png');
+      });
+      
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      
+      // Clean up
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error('Error generating high-res image:', error);
+      alert('Failed to generate high-resolution image. Please try a smaller size or refresh the page.');
+    } finally {
+      state.isGeneratingLargeImage = false;
+      state.generationProgress = 0;
+    }
   }
 </script>
 
@@ -376,17 +485,19 @@
           bind:this={canvas} 
           style="display: none;"
         ></canvas>
-        {#if state.imageLoading && state.layers.length === 0}
+        {#if state.imageLoading && state.layers.length === 0 && currentUnsig.index !== 0}
           <div class="spinner"></div>
         {/if}
-        {#each state.layers as layer (layer.imageUrl || 'black-overlay')}
-          <img 
-            src={layer.imageUrl}
-            alt={`NFT ${currentId} layer`}
-            class="layer"
-            style="opacity: {layer.opacity}; z-index: {layer.zIndex};"
-            on:load={handleImageLoad} />
-        {/each}
+        {#if currentUnsig.index !== 0}
+          {#each state.layers as layer (layer.imageUrl || 'black-overlay')}
+            <img 
+              src={layer.imageUrl}
+              alt={`NFT ${currentId} layer`}
+              class="layer"
+              style="opacity: {layer.opacity}; z-index: {layer.zIndex};"
+              on:load={handleImageLoad} />
+          {/each}
+        {/if}
       </div>
       
       <a href="/nft/{Number(currentId) + 1}" 
@@ -396,45 +507,59 @@
     </div>
 
     <div class="metadata" class:hidden={state.isFullscreen}>
-      <h2>Properties</h2>
-      <div class="properties">
-        <table>
-          <thead>
-            <tr>
-              <th> </th>
-              <th>Colors</th>
-              <th>Distributions</th>
-              <th>Multipliers</th>
-              <th>Rotations</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each Array(currentUnsig.num_props) as _, i}
-              <tr 
-                class:inactive={!state.activeLayerIndices.has(i)}
-                on:click={() => toggleLayer(i)}
-                role="button"
-                tabindex="0"
-                on:keydown={e => e.key === 'Enter' && toggleLayer(i)}
-              >
-                <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
-                <td>{currentUnsig.properties.colors[i]}</td>
-                <td>{currentUnsig.properties.distributions[i]}</td>
-                <td>{currentUnsig.properties.multipliers[i]}</td>
-                <td>{currentUnsig.properties.rotations[i]}</td>
+      {#if currentUnsig.index !== 0}
+        <h2>Properties</h2>
+        <div class="properties">
+          <table>
+            <thead>
+              <tr>
+                <th> </th>
+                <th>Colors</th>
+                <th>Distributions</th>
+                <th>Multipliers</th>
+                <th>Rotations</th>
               </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {#each Array(currentUnsig.num_props) as _, i}
+                <tr 
+                  class:inactive={!state.activeLayerIndices.has(i)}
+                  on:click={() => toggleLayer(i)}
+                  role="button"
+                  tabindex="0"
+                  on:keydown={e => e.key === 'Enter' && toggleLayer(i)}
+                >
+                  <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
+                  <td>{currentUnsig.properties.colors[i]}</td>
+                  <td>{currentUnsig.properties.distributions[i]}</td>
+                  <td>{currentUnsig.properties.multipliers[i]}</td>
+                  <td>{currentUnsig.properties.rotations[i]}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
       <h2>Download</h2>
       <div class="download-links">
         <button on:click={() => downloadImage(4096)}>4,096 px</button>
+        <button on:click={() => downloadImage(8192)}>8,192 px</button>
         <button on:click={() => downloadImage(16384)}>16,384 px</button>
       </div>
     </div>
   </div>
 </div>
+
+{#if state.isGeneratingLargeImage}
+  <div class="toast">
+    <div class="toast-content">
+      <h3>Generating {state.generationProgress}%</h3>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: {state.generationProgress}%"></div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .nft-detail {
@@ -468,6 +593,9 @@
     max-width: 1200px;
     aspect-ratio: 1;
     background: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .layer {
@@ -640,5 +768,49 @@
 
   tbody tr.inactive:hover {
     background: #444;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 8px;
+    padding: 1rem;
+    color: white;
+    z-index: 2000;
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .toast-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .toast h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #3498db;
+    transition: width 0.3s ease-out;
+  }
+
+  /* Remove old overlay styles */
+  .generation-overlay,
+  .generation-progress {
+    display: none;
   }
 </style> 
