@@ -38,7 +38,7 @@ function scaleMake2d(s: number[], dim: number): number[][] {
   return Array(dim).fill(scaled);
 }
 
-// Helper function to rotate 2D array
+// Helper function to rotate 2D array counterclockwise to match numpy's rot90
 function rot90(matrix: number[][], k: number = 1): number[][] {
   k = ((k % 4) + 4) % 4; // Normalize k to be between 0 and 3
   if (k === 0) return matrix;
@@ -49,9 +49,10 @@ function rot90(matrix: number[][], k: number = 1): number[][] {
   
   for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
-      if (k === 1) result[j][rows - 1 - i] = matrix[i][j];
-      else if (k === 2) result[rows - 1 - i][cols - 1 - j] = matrix[i][j];
-      else if (k === 3) result[cols - 1 - j][i] = matrix[i][j];
+      // Change rotation direction to counterclockwise
+      if (k === 1) result[cols - 1 - j][i] = matrix[i][j];         // 90° counterclockwise
+      else if (k === 2) result[rows - 1 - i][cols - 1 - j] = matrix[i][j];  // 180°
+      else if (k === 3) result[j][rows - 1 - i] = matrix[i][j];    // 270° counterclockwise
     }
   }
   
