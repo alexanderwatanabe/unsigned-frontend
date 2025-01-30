@@ -26,6 +26,7 @@
       opacity: number;
       zIndex: number;
     }[];
+    activeLayerIndices: Set<number>;  // Track which layers are active
   }
   
   let state: State = {
@@ -34,7 +35,8 @@
     currentLayer: 0,
     isRendering: false,
     isComplete: false,
-    layers: []
+    layers: [],
+    activeLayerIndices: new Set()  // Will be initialized with all layers active
   };
 
   let canvas: HTMLCanvasElement;
@@ -60,6 +62,63 @@
     state.imageLoading = false;
   }
 
+  // Initialize active layers when unsig changes
+  $: if (currentUnsig) {
+    state.activeLayerIndices = new Set(Array.from({ length: currentUnsig.num_props }, (_, i) => i));
+  }
+
+  // Function to toggle a layer and regenerate the image
+  async function toggleLayer(index: number) {
+    if (state.isRendering) return;  // Prevent toggling during transitions
+    
+    const newActiveLayerIndices = new Set(state.activeLayerIndices);
+    if (newActiveLayerIndices.has(index)) {
+      newActiveLayerIndices.delete(index);
+    } else {
+      newActiveLayerIndices.add(index);
+    }
+    
+    state.activeLayerIndices = newActiveLayerIndices;
+    await transitionToNewState();
+  }
+
+  async function transitionToNewState() {
+    if (!currentUnsig || !canvas) return;
+    
+    try {
+      state.isRendering = true;
+      
+      // Generate new image with current active layers
+      const newImageUrl = await generateImage(currentUnsig, state.isFullscreen ? 4096 : 2048);
+      if (!newImageUrl) {
+        console.error('Failed to generate new image');
+        return;
+      }
+
+      // Preload the image before showing it
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = newImageUrl;
+      });
+
+      // Directly set the new state with a single layer
+      state.layers = [{
+        imageUrl: newImageUrl,
+        opacity: 1,
+        zIndex: 1
+      }];
+      
+      state.isComplete = true;
+    } catch (error) {
+      console.error('Error in transition:', error);
+    } finally {
+      state.isRendering = false;
+    }
+  }
+
+  // Modified generateImage to respect active layers
   async function generateImage(unsig: any, size: number = 2048, layersToRender?: number) {
     if (!unsig || !canvas) return;
     
@@ -68,13 +127,17 @@
       const numLayers = layersToRender ?? unsig.num_props;
       console.log(`Rendering ${numLayers} layers of ${unsig.num_props} total`);
       
+      // Filter properties based on active layers
+      const activeIndices = Array.from(state.activeLayerIndices).sort((a, b) => a - b);
+      const activeLayersUpTo = activeIndices.filter(i => i < numLayers);
+      
       const formattedUnsig = createUnsig(
         Number(unsig.index), 
         {
-          multipliers: unsig.properties.multipliers.slice(0, numLayers).map(Number),
-          colors: unsig.properties.colors.slice(0, numLayers),
-          distributions: unsig.properties.distributions.slice(0, numLayers),
-          rotations: unsig.properties.rotations.slice(0, numLayers).map(Number)
+          multipliers: activeLayersUpTo.map(i => Number(unsig.properties.multipliers[i])),
+          colors: activeLayersUpTo.map(i => unsig.properties.colors[i]),
+          distributions: activeLayersUpTo.map(i => unsig.properties.distributions[i]),
+          rotations: activeLayersUpTo.map(i => Number(unsig.properties.rotations[i]))
         }
       );
 
@@ -158,21 +221,40 @@
         // Find the top-most visible layer (should be the black overlay or previous layer)
         const topLayer = state.layers.find(l => l.opacity === 1 && l.zIndex > i * 2);
         if (topLayer) {
-          // For black background, use shorter delay and wait time
+          // For black background or non-final layer, use standard timing
           const isBlackBackground = !topLayer.imageUrl;
           const fadeDelay = isBlackBackground ? 100 : 500;
-          const transitionWait = isBlackBackground ? 500 : 3000;
           
           // Wait before starting to fade out the top layer
           await new Promise(resolve => setTimeout(resolve, fadeDelay));
           topLayer.opacity = 0;
           
           // Wait for transition to complete
-          await new Promise(resolve => setTimeout(resolve, transitionWait));
+          await new Promise(resolve => setTimeout(resolve, isBlackBackground ? 500 : 3000));
           
-          // Remove the faded out layer
-          state.layers = state.layers.filter(layer => layer.opacity > 0);
+          // Only remove the black background layer, keep others until the end
+          if (isBlackBackground) {
+            state.layers = state.layers.filter(layer => layer.opacity > 0 || layer.imageUrl);
+          }
         }
+
+        // If this is not the last layer, wait a bit before continuing
+        if (i < unsig.num_props) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      // After all layers are done, wait for the final transition
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Keep only the final layer
+      const finalLayer = state.layers[state.layers.length - 1];
+      if (finalLayer) {
+        state.layers = [{
+          ...finalLayer,
+          opacity: 1,
+          zIndex: 1
+        }];
       }
       
       state.isComplete = true;
@@ -205,7 +287,12 @@
   // Watch for changes that require regenerating the image
   $: if (currentUnsig && canvas && !state.isRendering && !state.isComplete) {
     console.log('Unsig changed, starting new render');
-    renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+    // Only do progressive render for initial load or navigation
+    if (state.layers.length === 0) {
+      renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+    } else {
+      transitionToNewState();
+    }
   }
   
   // Only re-render on fullscreen toggle
@@ -222,7 +309,19 @@
   
   async function navigateToNft(newId: number) {
     if (isValidNftId(newId)) {
-      await goto(`/nft/${newId}`, { invalidateAll: true });
+      // Reset state before navigation
+      state.isComplete = false;
+      state.isRendering = false;
+      state.layers = [];
+      state.currentLayer = 0;
+      
+      // Navigate to new NFT
+      await goto(`/nft/${newId}`);
+      
+      // Force a new render
+      if (currentUnsig) {
+        renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+      }
     }
   }
 
@@ -311,7 +410,13 @@
           </thead>
           <tbody>
             {#each Array(currentUnsig.num_props) as _, i}
-              <tr>
+              <tr 
+                class:inactive={!state.activeLayerIndices.has(i)}
+                on:click={() => toggleLayer(i)}
+                role="button"
+                tabindex="0"
+                on:keydown={e => e.key === 'Enter' && toggleLayer(i)}
+              >
                 <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
                 <td>{currentUnsig.properties.colors[i]}</td>
                 <td>{currentUnsig.properties.distributions[i]}</td>
@@ -336,6 +441,7 @@
     width: 100%;
     display: flex;
     justify-content: center;
+    position: relative;  /* For absolute positioning of nav buttons */
   }
 
   .content-wrapper {
@@ -345,14 +451,15 @@
     flex-direction: column;
     align-items: center;
     gap: 2rem;
-    padding: 0 1rem;
+    padding: 0 5rem;  /* Add padding to make room for nav buttons */
   }
 
   .image-section {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0;  /* Remove gap between elements */
+    position: relative;  /* For absolute positioning of nav buttons */
   }
 
   .image-container {
@@ -374,6 +481,7 @@
     will-change: opacity;
     backface-visibility: hidden;
     pointer-events: none;
+    transform: translateZ(0);  /* Force GPU acceleration */
   }
 
   /* Add a subtle fade effect for the black background */
@@ -426,22 +534,33 @@
   }
 
   .nav-button {
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.2);
     color: white;
-    padding: 1rem;
+    padding: 0.75rem;
     text-decoration: none;
     border-radius: 50%;
-    width: 3rem;
-    height: 3rem;
+    width: 2.5rem;
+    height: 2.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: background 0.2s;
-    flex-shrink: 0;
+    position: fixed;  /* Change to fixed positioning */
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;  /* Ensure buttons are above content */
+  }
+
+  .nav-button.prev {
+    left: 5rem;  /* Move closer to center from left */
+  }
+
+  .nav-button.next {
+    right: 5rem;  /* Move closer to center from right */
   }
 
   .nav-button:hover {
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.4);
   }
 
   table {
@@ -503,5 +622,23 @@
 
   .download-links button:hover {
     background: rgba(128, 128, 128, 0.1);
+  }
+
+  tbody tr {
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  tbody tr:hover {
+    background: rgba(128, 128, 128, 0.1);
+  }
+
+  tbody tr.inactive {
+    background: #333;
+    color: #888;
+  }
+
+  tbody tr.inactive:hover {
+    background: #444;
   }
 </style> 
