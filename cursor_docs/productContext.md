@@ -23,6 +23,41 @@ Future Ethereum Phase:
 - Allows users to optionally store generated outputs on Ethereum
 - Provides secure reminting process from Cardano to Ethereum
 
+## Intended Functionality
+
+### Gallery View
+- Displays grid of NFT images with hover effects
+- Adjustable grid size (1x1 to 10x10)
+- Lazy loading of images
+- Loading overlay during state changes
+
+### Navigation
+- Prev/next page buttons
+- Direct page input
+- Items per page selector
+- URL-based state management
+
+### Filtering System
+- Search by ID
+- Filter by multiple properties:
+  - Color
+  - Distribution
+  - Multiplier
+  - Rotation
+- Up to 6 filter combinations
+- Real-time filter results
+
+### Random Mode
+- View random selections of unsigs
+- Adjustable number of random items
+- Easy toggle between random and normal modes
+
+### Performance Features
+- Image size optimization based on grid size
+- Prefetching of adjacent pages
+- Debounced search input
+- Efficient state management
+
 ## Core Concepts
 ### Current Implementation (Cardano)
 - Algorithms stored as blueprints

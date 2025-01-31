@@ -21,5 +21,10 @@ export default defineConfig({
 				global: 'globalThis'
 			}
 		}
+	},
+	resolve: {
+		alias: {
+			$assets: '/src/assets'
+		}
 	}
 });

@@ -1,0 +1,4 @@
+only use svelte5 runes ($state, $derived, $effect, etc) for reactivity, not svelte4 stores
+only use svelte5 new event handlers (onclick, oninput, etc.), not on:click, on:input, etc.
+prefer functional (.map, .filter, .reduce, etc.) over imperative (for loops, etc.)
+write all text in lowercase, except for acronyms

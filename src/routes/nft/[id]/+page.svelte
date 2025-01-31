@@ -368,9 +368,13 @@
       if (!shouldProceed) return;
     }
     
+    // start showing progress immediately
+    state.isGeneratingLargeImage = true;
+    state.generationProgress = 0;
+    
     try {
-      state.isGeneratingLargeImage = true;
-      state.generationProgress = 0;
+      // update progress to show we're starting
+      state.generationProgress = 10;
 
       // Create a temporary canvas for the download
       const tempCanvas = document.createElement('canvas');
@@ -385,6 +389,8 @@
       ctx.fillStyle = 'black';
       ctx.fillRect(0, 0, size, size);
       
+      state.generationProgress = 20;
+      
       // Generate high-res version
       const formattedUnsig = createUnsig(
         Number(currentUnsig.index),
@@ -396,11 +402,7 @@
         }
       );
 
-      // For large images, split the rendering into chunks
-      const CHUNK_SIZE = 4096;  // Process 4096x4096 chunks at a time
-      const numChunks = Math.ceil(size / CHUNK_SIZE);
-      const totalChunks = numChunks * numChunks;
-      let completedChunks = 0;
+      state.generationProgress = 30;
 
       // Special case for unsig 00000
       if (currentUnsig.index === 0) {
@@ -408,45 +410,23 @@
         ctx.fillRect(0, 0, size, size);
         state.generationProgress = 100;
       } else {
-        for (let y = 0; y < numChunks; y++) {
-          for (let x = 0; x < numChunks; x++) {
-            const chunkWidth = Math.min(CHUNK_SIZE, size - x * CHUNK_SIZE);
-            const chunkHeight = Math.min(CHUNK_SIZE, size - y * CHUNK_SIZE);
-            
-            // Generate chunk
-            const { imageData } = generateUnsig(formattedUnsig, CHUNK_SIZE);
-            const chunkData = unsigToImageData(imageData, CHUNK_SIZE);
-            
-            // Create a temporary canvas for the chunk
-            const chunkCanvas = document.createElement('canvas');
-            chunkCanvas.width = CHUNK_SIZE;
-            chunkCanvas.height = CHUNK_SIZE;
-            const chunkCtx = chunkCanvas.getContext('2d');
-            if (!chunkCtx) continue;
-            
-            // Draw chunk
-            chunkCtx.putImageData(chunkData, 0, 0);
-            
-            // Scale and draw chunk to main canvas
-            ctx.drawImage(
-              chunkCanvas,
-              0, 0, CHUNK_SIZE, CHUNK_SIZE,
-              x * CHUNK_SIZE, y * CHUNK_SIZE, chunkWidth, chunkHeight
-            );
-            
-            // Update progress
-            completedChunks++;
-            state.generationProgress = Math.round((completedChunks / totalChunks) * 100);
-            
-            // Allow browser to process other tasks
-            await new Promise(resolve => setTimeout(resolve, 0));
-          }
-        }
+        // show we're starting the heavy generation
+        state.generationProgress = 40;
+        
+        // Generate the full image at once
+        const { imageData } = generateUnsig(formattedUnsig, size);
+        state.generationProgress = 80;
+        
+        const fullData = unsigToImageData(imageData, size);
+        ctx.putImageData(fullData, 0, 0);
+        state.generationProgress = 90;
       }
       
       // Create download link
       const link = document.createElement('a');
       link.download = `unsig_${paddedId}_${size}px.png`;
+      
+      state.generationProgress = 95;
       
       // Use blob to handle large files
       const blob = await new Promise<Blob>(resolve => {
@@ -454,6 +434,8 @@
           if (blob) resolve(blob);
         }, 'image/png');
       });
+      
+      state.generationProgress = 100;
       
       link.href = URL.createObjectURL(blob);
       link.click();
@@ -464,8 +446,11 @@
       console.error('Error generating high-res image:', error);
       alert('Failed to generate high-resolution image. Please try a smaller size or refresh the page.');
     } finally {
-      state.isGeneratingLargeImage = false;
-      state.generationProgress = 0;
+      // wait a moment before hiding the toast so user can see 100%
+      setTimeout(() => {
+        state.isGeneratingLargeImage = false;
+        state.generationProgress = 0;
+      }, 1000);
     }
   }
 </script>
@@ -478,7 +463,10 @@
       <a href="/nft/{Number(currentId) - 1}" 
          class="nav-button prev" 
          class:hidden={state.isFullscreen}
-         on:click|preventDefault={() => navigateToNft(Number(currentId) - 1)}>←</a>
+         onclick={(e) => {
+           e.preventDefault();
+           navigateToNft(Number(currentId) - 1);
+         }}>←</a>
          
       <div class="image-container">
         <canvas 
@@ -495,7 +483,7 @@
               alt={`NFT ${currentId} layer`}
               class="layer"
               style="opacity: {layer.opacity}; z-index: {layer.zIndex};"
-              on:load={handleImageLoad} />
+              onload={handleImageLoad} />
           {/each}
         {/if}
       </div>
@@ -503,7 +491,10 @@
       <a href="/nft/{Number(currentId) + 1}" 
          class="nav-button next" 
          class:hidden={state.isFullscreen}
-         on:click|preventDefault={() => navigateToNft(Number(currentId) + 1)}>→</a>
+         onclick={(e) => {
+           e.preventDefault();
+           navigateToNft(Number(currentId) + 1);
+         }}>→</a>
     </div>
 
     <div class="metadata" class:hidden={state.isFullscreen}>
@@ -524,10 +515,10 @@
               {#each Array(currentUnsig.num_props) as _, i}
                 <tr 
                   class:inactive={!state.activeLayerIndices.has(i)}
-                  on:click={() => toggleLayer(i)}
+                  onclick={() => toggleLayer(i)}
                   role="button"
                   tabindex="0"
-                  on:keydown={e => e.key === 'Enter' && toggleLayer(i)}
+                  onkeydown={e => e.key === 'Enter' && toggleLayer(i)}
                 >
                   <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
                   <td>{currentUnsig.properties.colors[i]}</td>
@@ -542,9 +533,9 @@
       {/if}
       <h2>Download</h2>
       <div class="download-links">
-        <button on:click={() => downloadImage(4096)}>4,096 px</button>
-        <button on:click={() => downloadImage(8192)}>8,192 px</button>
-        <button on:click={() => downloadImage(16384)}>16,384 px</button>
+        <button onclick={() => downloadImage(4096)}>4,096 px</button>
+        <button onclick={() => downloadImage(8192)}>8,192 px</button>
+        <button onclick={() => downloadImage(16384)}>16,384 px</button>
       </div>
     </div>
   </div>
@@ -629,13 +620,6 @@
     justify-content: center;
   }
 
-  .download-links a {
-    padding: 0.5rem 1rem;
-    border: 1px solid var(--border-color);
-    text-decoration: none;
-    color: var(--text-color);
-  }
-
   .fullscreen {
     position: fixed;
     top: 0;
@@ -648,13 +632,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-
-  .image-container.fullscreen img {
-    max-height: 100vh;
-    width: auto;
-    max-width: 100vw;
-    object-fit: contain;
   }
 
   .hidden {
@@ -736,10 +713,6 @@
     100% { transform: translate(-50%, -50%) rotate(360deg); }
   }
 
-  .loading {
-    opacity: 0.5;
-  }
-
   .download-links button {
     padding: 0.5rem 1rem;
     border: 1px solid var(--border-color);
@@ -806,11 +779,5 @@
     height: 100%;
     background: #3498db;
     transition: width 0.3s ease-out;
-  }
-
-  /* Remove old overlay styles */
-  .generation-overlay,
-  .generation-progress {
-    display: none;
   }
 </style> 

@@ -117,4 +117,161 @@
 - Documentation standards
 - Accessibility compliance
 
-Note: Ethereum-related patterns and architecture will be detailed in a future phase. 
+Note: Ethereum-related patterns and architecture will be detailed in a future phase.
+
+## Architecture Patterns
+
+### Frontend Architecture
+- Svelte 5 with runes for state management
+- Component-based structure
+- Responsive design patterns
+- Lazy loading and prefetching
+- Fixed navigation with proper z-indexing
+
+### Wallet Integration (In Progress)
+- Basic wallet connection UI
+- Placeholder state management
+- Service layer foundation
+- Transaction handling (planned)
+- Wallet state persistence (planned)
+
+### Gallery System
+- Square grid layout with dynamic sizing
+- Height-based width calculation
+- Sticky positioning with proper layering
+- External navigation buttons
+- Loading state management
+- Image prefetching for adjacent pages
+
+### State Management
+- Runes for reactive state
+- Centralized data flow
+- Type-safe interactions
+- Predictable state updates
+
+### Navigation Patterns
+- Fixed navbar
+- Sticky gallery container
+- External page controls
+- Smooth transitions
+- Proper z-index layering
+
+### Loading Patterns
+- Lazy loading for images
+- Loading overlay with backdrop
+- Prefetching for adjacent pages
+- Error state handling
+- Loading state indicators
+
+### Filter System
+- Multiple filter criteria
+- Combinatorial filtering
+- Filter state management
+- Filter UI patterns
+- Filter performance optimization
+
+## Code Organization
+- Component-based structure
+- Type-safe interfaces
+- Shared utilities
+- Consistent styling patterns
+- Reusable components
+
+## Styling Patterns
+- Tailwind for utility classes
+- CSS variables for theming
+- Responsive design principles
+- Consistent spacing
+- Proper z-index management
+
+## Performance Patterns
+- Image optimization
+- Lazy loading
+- Prefetching
+- State caching
+- Efficient filtering
+
+## Error Handling
+- Graceful degradation
+- User feedback
+- Error boundaries (planned)
+- Loading states
+- Retry mechanisms
+
+## Gallery Architecture
+
+### State Management
+- Use Svelte 5 runes for reactivity
+- $state for reactive variables
+- $effect for side effects
+- URL-based state persistence
+
+### Component Structure
+```
+gallery/
+  +page.svelte       # main gallery component
+  $types.ts          # typescript types
+```
+
+### Data Flow
+1. Initial load
+   - Read URL params
+   - Initialize state
+   - Load initial page
+   - Process metadata if available
+
+2. Pagination
+   - Update current page
+   - Update URL
+   - Load new images
+   - Prefetch adjacent pages
+
+3. Filtering
+   - Update filter state
+   - Apply filters
+   - Update URL
+   - Reload current page
+
+4. Random mode
+   - Generate random indexes
+   - Load random images
+   - Disable pagination
+   - Provide exit mechanism
+
+### Optimization Patterns
+1. Image loading
+   - Lazy load images
+   - Prefetch adjacent pages
+   - Size based on grid
+
+2. State updates
+   - Debounce search input
+   - Batch state updates
+   - Prevent unnecessary effects
+
+3. URL management
+   - Sync state with URL
+   - Handle navigation
+   - Preserve filters
+
+### Error Handling
+1. Loading states
+   - Show loading overlay
+   - Handle failed requests
+   - Reset loading state
+
+2. Validation
+   - Check page bounds
+   - Validate filter input
+   - Sanitize search input
+
+### Responsive Design
+1. Grid layout
+   - Dynamic grid size
+   - Responsive image sizing
+   - Maintain aspect ratio
+
+2. Navigation
+   - Touch-friendly controls
+   - Keyboard navigation
+   - Accessible buttons 
