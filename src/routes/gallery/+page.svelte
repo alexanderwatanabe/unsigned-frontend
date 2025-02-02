@@ -629,8 +629,18 @@
       return;
     }
 
-    if (event.key === 'Escape' && isDrawerOpen) {
-      isDrawerOpen = false;
+    if (event.key === 'Escape') {
+      if (isDrawerOpen) {
+        isDrawerOpen = false;
+      } else {
+        // Clear all filters and return to default view
+        currentView = 'all';
+        randomMode = false;
+        currentPage = 1;
+        idSearch = '';
+        activeFilters = [];
+        pendingFilters = [];
+      }
       return;
     }
 
