@@ -851,32 +851,6 @@
     </div>
 
     <div class="pagination-controls" class:hidden={randomMode}>
-      <div class="items-per-page">
-        <span>items per page: {displayItemsPerPage}</span>
-        <input 
-          type="range"
-          min="0"
-          max={PAGE_SIZES.length - 1}
-          step="1"
-          value={PAGE_SIZES.indexOf(itemsPerPage)}
-          oninput={(e) => {
-            const target = e.target as HTMLInputElement;
-            const value = parseInt(target.value);
-            if (!isNaN(value)) {
-              displayItemsPerPage = PAGE_SIZES[value];
-            }
-          }}
-          onchange={(e) => {
-            const target = e.target as HTMLInputElement;
-            const value = parseInt(target.value);
-            if (!isNaN(value)) {
-              updateItemsPerPage(PAGE_SIZES[value]);
-              displayItemsPerPage = PAGE_SIZES[value];
-            }
-          }}
-        />
-      </div>
-
       <div class="pagination">
         <button 
           disabled={currentPage === 1} 
@@ -914,6 +888,32 @@
           →
         </button>
       </div>
+
+      <div class="items-per-page">
+        <span>items per page: {displayItemsPerPage}</span>
+        <input 
+          type="range"
+          min="0"
+          max={PAGE_SIZES.length - 1}
+          step="1"
+          value={PAGE_SIZES.indexOf(itemsPerPage)}
+          oninput={(e) => {
+            const target = e.target as HTMLInputElement;
+            const value = parseInt(target.value);
+            if (!isNaN(value)) {
+              displayItemsPerPage = PAGE_SIZES[value];
+            }
+          }}
+          onchange={(e) => {
+            const target = e.target as HTMLInputElement;
+            const value = parseInt(target.value);
+            if (!isNaN(value)) {
+              updateItemsPerPage(PAGE_SIZES[value]);
+              displayItemsPerPage = PAGE_SIZES[value];
+            }
+          }}
+        />
+      </div>
     </div>
   </div>
 </div>
@@ -928,9 +928,12 @@
     display: grid;
     grid-template-columns: repeat(var(--grid-size), 1fr);
     gap: 0.5rem;
-    width: min(100%, calc(var(--grid-size) * var(--item-base-size, 150px)));
+    width: 70vh;
+    height: 70vh;
     margin: 0 auto;
     min-height: 200px;
+    min-width: 200px;
+    max-width: 100%;
   }
 
   .grid-item {
@@ -938,19 +941,20 @@
     aspect-ratio: 1;
     overflow: hidden;
     width: 100%;
+    height: auto;
   }
 
-  /* Scale grid items based on resolution */
+  /* Scale grid items based on resolution and container size */
   .grid[data-resolution="1024"] {
-    --item-base-size: 400px;
+    --item-base-size: calc(70vh / var(--grid-size));
   }
 
   .grid[data-resolution="256"] {
-    --item-base-size: 200px;
+    --item-base-size: calc(70vh / var(--grid-size));
   }
 
   .grid[data-resolution="128"] {
-    --item-base-size: 150px;
+    --item-base-size: calc(70vh / var(--grid-size));
   }
 
   .grid-item img {
@@ -1134,8 +1138,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
-    margin: 2rem auto;
+    gap: 0.5rem;
+    margin: 0.75rem auto;
     width: 100%;
     max-width: 800px;
   }
@@ -1144,7 +1148,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
