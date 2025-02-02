@@ -2,10 +2,22 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { unsigs, getUnsig } from '$lib/unsigs';
-  import { generateUnsig, unsigToImageData, createUnsig } from '$lib/unsig/generator';
+  import { 
+    generateUnsig, 
+    unsigToImageData, 
+    createUnsig, 
+    generateAnimationState,
+    generateVideo,
+    createVideoDownloadLink,
+    animationStep,
+    createVideo
+  } from '$lib/unsig/generator';
   import type { PageData } from './$types';
   import { invalidate, goto } from '$app/navigation';
   
+  // Constants
+  const DIM = 1024; // Animation dimension reduced to 1024 for better performance
+
   // Add type safety for the image URLs
   interface ImageUrls {
     low: string;
@@ -14,7 +26,7 @@
     ultra: string;
   }
 
-  // Group related state
+  // Update State interface to include accumulated frames
   interface State {
     isFullscreen: boolean;
     imageLoading: boolean;
@@ -26,9 +38,12 @@
       opacity: number;
       zIndex: number;
     }[];
-    activeLayerIndices: Set<number>;  // Track which layers are active
-    isGeneratingLargeImage: boolean;  // Add this to track large image generation
-    generationProgress: number;  // Add this to track progress
+    activeLayerIndices: Set<number>;
+    isGeneratingLargeImage: boolean;
+    generationProgress: number;
+    animationState: any;
+    animationFrameId: number | null;
+    accumulatedFrames: { imageData: Uint8Array; timestamp: number }[];
   }
   
   let state: State = {
@@ -40,10 +55,15 @@
     layers: [],
     activeLayerIndices: new Set(),
     isGeneratingLargeImage: false,
-    generationProgress: 0
+    generationProgress: 0,
+    animationState: null,
+    animationFrameId: null,
+    accumulatedFrames: []
   };
 
   let canvas: HTMLCanvasElement;
+  let downloadLink: HTMLAnchorElement | null = null;
+  let isRecording: boolean = false;
 
   // Add validation for navigation
   function isValidNftId(id: number): boolean {
@@ -59,6 +79,8 @@
       navigateToNft(Number(currentId) + 1);
     } else if (event.key === 'Escape' && state.isFullscreen) {
       state.isFullscreen = false;
+    } else if (event.key.toLowerCase() === 'a') {
+      startAnimation(currentUnsig, state.isFullscreen ? 4096 : 2048);
     }
   }
 
@@ -66,10 +88,12 @@
     state.imageLoading = false;
   }
 
-  // Initialize active layers when unsig changes
-  $: if (currentUnsig) {
-    state.activeLayerIndices = new Set(Array.from({ length: currentUnsig.num_props }, (_, i) => i));
-  }
+  // Replace reactive statement with $effect
+  $effect(() => {
+    if (currentUnsig) {
+      state.activeLayerIndices = new Set(Array.from({ length: currentUnsig.num_props }, (_, i) => i));
+    }
+  });
 
   // Function to toggle a layer and regenerate the image
   async function toggleLayer(index: number) {
@@ -149,7 +173,7 @@
       const { imageData } = generateUnsig(formattedUnsig, size);
       
       // Convert to ImageData for canvas
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return;
 
       // Set canvas size
@@ -178,164 +202,160 @@
     }
   }
 
-  async function renderProgressively(unsig: any, size: number) {
-    if (!unsig || state.isRendering) return;
+  // Function to capture a frame
+  function captureFrame(imageData: Uint8Array, frameCount: number): void {
+    state.accumulatedFrames.push({
+      imageData: new Uint8Array(imageData),
+      timestamp: frameCount * (1000 / 60) // 60fps timing
+    });
+  }
+
+  // Animation function with frame accumulation
+  function animationFrame() {
+    if (!canvas || !state.animationState || state.isComplete) return;
+    
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return;
+    
+    // Always use DIM for animation
+    const imageData = ctx.getImageData(0, 0, DIM, DIM);
+    
+    // Convert Uint8ClampedArray to Uint8Array
+    const uint8Data = new Uint8Array(imageData.data.buffer);
+    
+    // Perform animation step
+    const isComplete = animationStep(state.animationState, uint8Data, DIM);
+    
+    // Store frame for video generation
+    state.accumulatedFrames.push({
+      imageData: new Uint8Array(uint8Data),
+      timestamp: state.accumulatedFrames.length * (1000 / 60) // 60fps timing
+    });
+    
+    // Update canvas
+    ctx.putImageData(imageData, 0, 0);
+    
+    if (isComplete) {
+      state.isComplete = true;
+      state.isRendering = false;
+      state.animationFrameId = null;
+    } else {
+      // Schedule next frame
+      state.animationFrameId = requestAnimationFrame(animationFrame);
+    }
+  }
+
+  // Modified video generation to use accumulated frames
+  async function handleRecordAnimation() {
+    if (!currentUnsig || isRecording || state.accumulatedFrames.length === 0) return;
+    
+    isRecording = true;
+    state.generationProgress = 0;
     
     try {
-      state.isRendering = true;
-      state.isComplete = false;
-      state.currentLayer = 0;
-      state.layers = [];
+      // Create video directly from accumulated frames
+      const videoUrl = await createVideo(
+        state.accumulatedFrames,
+        canvas,
+        DIM,
+        60, // 60fps
+        10000000 // 10Mbps
+      );
       
-      console.log(`Starting progressive render for unsig ${unsig.index} with ${unsig.num_props} layers`);
-      
-      // Start with black background at highest z-index
-      state.layers = [{
-        imageUrl: '',  // Empty black layer
-        opacity: 1,
-        zIndex: unsig.num_props * 2  // Double the z-index range to ensure proper stacking
-      }];
-
-      // Generate each layer
-      for (let i = 1; i <= unsig.num_props; i++) {
-        state.currentLayer = i;
-        console.log(`Rendering layer ${i} of ${unsig.num_props}`);
-        
-        // Generate current layer
-        const newImageUrl = await generateImage(unsig, size, i);
-        if (!newImageUrl) continue;
-
-        // Add new layer with z-index matching its layer number
-        state.layers = [
-          ...state.layers,
-          {
-            imageUrl: newImageUrl,
-            opacity: 0,  // Start invisible
-            zIndex: i * 2  // Use even numbers for layer z-indices
-          }
-        ];
-
-        // Small delay for DOM update
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Fade in new layer
-        const newLayer = state.layers[state.layers.length - 1];
-        newLayer.opacity = 1;
-        
-        // Find the top-most visible layer (should be the black overlay or previous layer)
-        const topLayer = state.layers.find(l => l.opacity === 1 && l.zIndex > i * 2);
-        if (topLayer) {
-          // For black background or non-final layer, use standard timing
-          const isBlackBackground = !topLayer.imageUrl;
-          const fadeDelay = isBlackBackground ? 100 : 500;
-          
-          // Wait before starting to fade out the top layer
-          await new Promise(resolve => setTimeout(resolve, fadeDelay));
-          topLayer.opacity = 0;
-          
-          // Wait for transition to complete
-          await new Promise(resolve => setTimeout(resolve, isBlackBackground ? 500 : 3000));
-          
-          // Only remove the black background layer, keep others until the end
-          if (isBlackBackground) {
-            state.layers = state.layers.filter(layer => layer.opacity > 0 || layer.imageUrl);
-          }
-        }
-
-        // If this is not the last layer, wait a bit before continuing
-        if (i < unsig.num_props) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
+      // Create download link
+      if (downloadLink) {
+        downloadLink.remove();
       }
-      
-      // After all layers are done, wait for the final transition
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Keep only the final layer
-      const finalLayer = state.layers[state.layers.length - 1];
-      if (finalLayer) {
-        state.layers = [{
-          ...finalLayer,
-          opacity: 1,
-          zIndex: 1
-        }];
-      }
-      
-      state.isComplete = true;
+      downloadLink = createVideoDownloadLink(videoUrl, `unsig-${currentUnsig.index}.webm`);
+      document.body.appendChild(downloadLink);
     } catch (error) {
-      console.error('Error in progressive render:', error);
+      console.error('Error generating video:', error);
+      alert('Failed to generate video. Please try again.');
     } finally {
-      state.isRendering = false;
+      isRecording = false;
+      state.generationProgress = 0;
+    }
+  }
+
+  // Add the handleFullscreenChange function
+  function handleFullscreenChange() {
+    if (currentUnsig && canvas) {
+      transitionToNewState();
     }
   }
 
   onMount(() => {
     document.addEventListener('keydown', handleKeydown);
-    // Generate initial image progressively
     if (currentUnsig && !state.isRendering && !state.isComplete) {
       console.log('Initial render on mount');
-      renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+      transitionToNewState();
     }
     return () => {
       document.removeEventListener('keydown', handleKeydown);
+      if (state.animationFrameId) {
+        cancelAnimationFrame(state.animationFrameId);
+      }
       state.isRendering = false;
       state.isComplete = false;
     };
   });
   
-  // Use more descriptive names for reactive declarations
-  $: currentId = $page.params.id;
-  $: paddedId = currentId.padStart(5, '0');
-  $: currentUnsig = getUnsig(currentId);
+  // Convert reactive declarations to derived values
+  const currentId = $derived($page.params.id);
+  const paddedId = $derived(currentId.padStart(5, '0'));
+  const currentUnsig = $derived(getUnsig(currentId));
   
   // Watch for changes that require regenerating the image
-  $: if (currentUnsig && canvas && !state.isRendering && !state.isComplete) {
-    console.log('Unsig changed, starting new render');
-    // Special case for unsig 00000
-    if (currentUnsig.index === 0) {
-      // Just render a black canvas
-      const ctx = canvas.getContext('2d');
+  $effect(() => {
+    if (currentUnsig && canvas) {
+      transitionToNewState();
+    }
+  });
+  
+  // Watch for fullscreen changes
+  $effect(() => {
+    if (currentUnsig?.index !== 0 && canvas) {
+      handleFullscreenChange();
+    }
+  });
+  
+  // Watch for fullscreen toggle on non-zero unsigs
+  $effect(() => {
+    if (currentUnsig?.index !== 0 && canvas) {
+      const size = state.isFullscreen ? 4096 : 2048;
+      canvas.width = size;
+      canvas.height = size;
+      transitionToNewState();
+    }
+  });
+  
+  // Watch for resolution changes on non-zero unsigs
+  $effect(() => {
+    if (currentUnsig?.index !== 0 && canvas && !state.isRendering && state.isComplete && state.layers.length > 0) {
+      const targetSize = state.isFullscreen ? 4096 : 2048;
+      const currentSize = canvas.width;
+      
+      if (currentSize !== targetSize) {
+        console.log(`Resolution change needed: ${currentSize} -> ${targetSize}`);
+        state.isComplete = false;  // Reset completion state for new render
+        animationFrame();
+      }
+    }
+  });
+
+  // Watch for unsig 00000 fullscreen changes
+  $effect(() => {
+    if (currentUnsig?.index === 0 && canvas && !state.isRendering) {
+      const size = state.isFullscreen ? 4096 : 2048;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (ctx) {
-        const size = state.isFullscreen ? 4096 : 2048;
         canvas.width = size;
         canvas.height = size;
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, size, size);
-        state.isComplete = true;
-      }
-    } else {
-      // Only do progressive render for initial load or navigation
-      if (state.layers.length === 0) {
-        renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
-      } else {
-        transitionToNewState();
       }
     }
-  }
-  
-  // Only re-render on fullscreen toggle for non-zero unsigs
-  $: if (currentUnsig && currentUnsig.index !== 0 && canvas && !state.isRendering && state.isComplete && state.layers.length > 0) {
-    const targetSize = state.isFullscreen ? 4096 : 2048;
-    const currentSize = canvas.width;
-    
-    if (currentSize !== targetSize) {
-      console.log(`Resolution change needed: ${currentSize} -> ${targetSize}`);
-      state.isComplete = false;  // Reset completion state for new render
-      renderProgressively(currentUnsig, targetSize);
-    }
-  }
-
-  // Special case for unsig 00000 fullscreen toggle
-  $: if (currentUnsig && currentUnsig.index === 0 && canvas && !state.isRendering) {
-    const size = state.isFullscreen ? 4096 : 2048;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      canvas.width = size;
-      canvas.height = size;
-      ctx.fillStyle = 'black';
-      ctx.fillRect(0, 0, size, size);
-    }
-  }
+  });
   
   async function navigateToNft(newId: number) {
     if (isValidNftId(newId)) {
@@ -350,7 +370,7 @@
       
       // Force a new render
       if (currentUnsig) {
-        renderProgressively(currentUnsig, state.isFullscreen ? 4096 : 2048);
+        animationFrame();
       }
     }
   }
@@ -433,6 +453,69 @@
       state.generationProgress = 0;
     }
   }
+
+  async function startAnimation(unsig: any, size: number) {
+    if (!unsig || !canvas || state.isRendering) return;
+    
+    try {
+      state.isRendering = true;
+      state.isComplete = false;
+      state.accumulatedFrames = []; // Reset accumulated frames
+      
+      // Initialize canvas with black background
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      
+      // Always use DIM for animation
+      canvas.width = DIM;
+      canvas.height = DIM;
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, DIM, DIM);
+      
+      // Create formatted unsig object
+      const formattedUnsig = createUnsig(
+        Number(unsig.index),
+        {
+          multipliers: unsig.properties.multipliers.map(Number),
+          colors: unsig.properties.colors,
+          distributions: unsig.properties.distributions,
+          rotations: unsig.properties.rotations.map(Number)
+        }
+      );
+      
+      // Generate animation state using DIM
+      state.animationState = generateAnimationState(formattedUnsig, DIM);
+      
+      // Store initial frame
+      const initialImageData = ctx.getImageData(0, 0, DIM, DIM);
+      state.accumulatedFrames.push({
+        imageData: new Uint8Array(initialImageData.data.buffer),
+        timestamp: 0
+      });
+      
+      // Start animation loop
+      if (state.animationFrameId) {
+        cancelAnimationFrame(state.animationFrameId);
+      }
+      state.animationFrameId = requestAnimationFrame(animationFrame);
+      
+    } catch (error) {
+      console.error('Error starting animation:', error);
+      state.isRendering = false;
+    }
+  }
+
+  $effect(() => {
+    if (downloadLink) {
+      console.log('Download link updated:', downloadLink);
+    }
+  });
+
+  $effect(() => {
+    if (isRecording) {
+      console.log('Recording state changed:', isRecording);
+    }
+  });
 </script>
 
 <div class="nft-detail" class:fullscreen={state.isFullscreen}>
@@ -443,32 +526,26 @@
       <a href="/nft/{Number(currentId) - 1}" 
          class="nav-button prev" 
          class:hidden={state.isFullscreen}
-         on:click|preventDefault={() => navigateToNft(Number(currentId) - 1)}>←</a>
+         onclick={(e) => {
+           e.preventDefault();
+           navigateToNft(Number(currentId) - 1);
+         }}>←</a>
          
       <div class="image-container">
         <canvas 
-          bind:this={canvas} 
-          style="display: none;"
+          bind:this={canvas}
+          class="nft-canvas"
+          style="width: 100%; height: 100%; display: block;"
         ></canvas>
-        {#if state.imageLoading && state.layers.length === 0 && currentUnsig.index !== 0}
-          <div class="spinner"></div>
-        {/if}
-        {#if currentUnsig.index !== 0}
-          {#each state.layers as layer (layer.imageUrl || 'black-overlay')}
-            <img 
-              src={layer.imageUrl}
-              alt={`NFT ${currentId} layer`}
-              class="layer"
-              style="opacity: {layer.opacity}; z-index: {layer.zIndex};"
-              on:load={handleImageLoad} />
-          {/each}
-        {/if}
       </div>
       
       <a href="/nft/{Number(currentId) + 1}" 
          class="nav-button next" 
          class:hidden={state.isFullscreen}
-         on:click|preventDefault={() => navigateToNft(Number(currentId) + 1)}>→</a>
+         onclick={(e) => {
+           e.preventDefault();
+           navigateToNft(Number(currentId) + 1);
+         }}>→</a>
     </div>
 
     <div class="metadata" class:hidden={state.isFullscreen}>
@@ -489,10 +566,10 @@
               {#each Array(currentUnsig.num_props) as _, i}
                 <tr 
                   class:inactive={!state.activeLayerIndices.has(i)}
-                  on:click={() => toggleLayer(i)}
+                  onclick={() => toggleLayer(i)}
                   role="button"
                   tabindex="0"
-                  on:keydown={e => e.key === 'Enter' && toggleLayer(i)}
+                  onkeydown={e => e.key === 'Enter' && toggleLayer(i)}
                 >
                   <td>{i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'}</td>
                   <td>{currentUnsig.properties.colors[i]}</td>
@@ -504,13 +581,44 @@
             </tbody>
           </table>
         </div>
+        
+        <h2>Animation</h2>
+        <div class="animation-controls">
+          <button 
+            onclick={() => startAnimation(currentUnsig, state.isFullscreen ? 4096 : 2048)}
+            disabled={state.isRendering}
+          >
+            Animate (A)
+          </button>
+          
+          <button 
+            disabled={isRecording || !currentUnsig || state.accumulatedFrames.length === 0} 
+            onclick={handleRecordAnimation}
+          >
+            {#if isRecording}
+              Generating Video ({state.generationProgress}%)...
+            {:else}
+              Generate Animation Video
+            {/if}
+          </button>
+          
+          {#if downloadLink}
+            <div class="download-section">
+              <p>Your video is ready!</p>
+              <button onclick={() => downloadLink?.click()}>
+                Download Video
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        <h2>Download</h2>
+        <div class="download-links">
+          <button onclick={() => downloadImage(4096)}>4,096 px</button>
+          <button onclick={() => downloadImage(8192)}>8,192 px</button>
+          <button onclick={() => downloadImage(16384)}>16,384 px</button>
+        </div>
       {/if}
-      <h2>Download</h2>
-      <div class="download-links">
-        <button on:click={() => downloadImage(4096)}>4,096 px</button>
-        <button on:click={() => downloadImage(8192)}>8,192 px</button>
-        <button on:click={() => downloadImage(16384)}>16,384 px</button>
-      </div>
     </div>
   </div>
 </div>
@@ -701,20 +809,41 @@
 
   tbody tr {
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
+    background: white;
+    color: #333;
   }
 
   tbody tr:hover {
-    background: rgba(128, 128, 128, 0.1);
+    background: #e0e0e0;
+    color: #333;
   }
 
   tbody tr.inactive {
     background: #333;
-    color: #888;
+    color: #aaa;
   }
 
   tbody tr.inactive:hover {
     background: #444;
+    color: #ccc;
+  }
+
+  /* Add table styles */
+  .properties table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+
+  .properties th {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .properties td {
+    padding: 0.5rem;
   }
 
   .toast {
@@ -753,5 +882,50 @@
     height: 100%;
     background: #3498db;
     transition: width 0.3s ease-out;
+  }
+
+  .nft-canvas {
+    image-rendering: pixelated;
+    background: black;
+  }
+
+  .controls {
+    margin-top: 1rem;
+    text-align: center;
+  }
+  
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .download-section {
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .animation-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .animation-controls button {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background: none;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+
+  .animation-controls button:hover:not(:disabled) {
+    background: rgba(128, 128, 128, 0.1);
+  }
+
+  .animation-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style> 
