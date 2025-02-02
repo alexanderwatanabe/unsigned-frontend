@@ -243,9 +243,13 @@
     return activeFilters.every(filter => matchesFilter(index, filter));
   }
 
-  // Update the findBestPageSize function to be more sophisticated
+  // Update the findBestPageSize function to prefer 25 as default
   function findBestPageSize(totalItems: number): number {
-    // Find the largest page size that's smaller than or equal to totalItems
+    // If total items is greater than 25, return 25 as default
+    if (totalItems >= 25) {
+      return 25;
+    }
+    // For smaller sets, find the largest page size that's smaller than or equal to totalItems
     for (let i = PAGE_SIZES.length - 1; i >= 0; i--) {
       if (PAGE_SIZES[i] <= totalItems) {
         return PAGE_SIZES[i];
@@ -646,6 +650,9 @@
 
   onMount(() => {
     loadMetadata();
+    // Set initial page size to 25
+    itemsPerPage = 25;
+    displayItemsPerPage = 25;
     // Add keyboard event listener
     window.addEventListener('keydown', handleKeydown);
     // Prefetch first random batch
