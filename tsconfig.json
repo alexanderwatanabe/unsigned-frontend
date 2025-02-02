@@ -1,22 +1,22 @@
 {
 	"extends": "./.svelte-kit/tsconfig.json",
 	"compilerOptions": {
-		"allowJs": true,
-		"checkJs": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
-		"sourceMap": true,
-		"strict": true,
+		"target": "ES2020",
+		"module": "ES2020",
 		"moduleResolution": "bundler",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"outDir": "./dist",
+		"rootDir": ".",
 		"paths": {
-			"$lib": ["./src/lib"],
 			"$lib/*": ["./src/lib/*"],
-			"$assets": ["./src/assets"],
 			"$assets/*": ["./src/assets/*"]
 		}
-	}
+	},
+	"include": ["src/**/*", "scripts/**/*"],
+	"exclude": ["node_modules"]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
 	//
