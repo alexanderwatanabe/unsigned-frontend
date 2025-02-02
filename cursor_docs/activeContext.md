@@ -1,28 +1,25 @@
 # Active Context
 
 ## Current Task
-- Implementing special collection views in the gallery page
-- Added monochrome feature alongside no-liners
-- Reorganized drawer controls for better UX
+- Implementing keyboard shortcuts for better UX
+- Added ESC key to close drawer
+- Maintaining consistent keyboard navigation patterns
 
 ## Recent Changes
-1. Added monochrome feature:
-   - Imports monochrome data from `src/assets/monochromes.json`
+1. Added ESC key functionality:
+   - Added ESC key handler to close drawer
+   - Prioritized ESC handling before other shortcuts
+   - Added early return to prevent other shortcuts when ESC is used
+
+2. Drawer can now be closed via:
+   - ESC key
+   - × button
+   - 'e' key toggle
+
+3. Previous Changes (Monochrome Feature):
    - Added monochrome view type and state management
-   - Added `showMonochromes()` function
-   - Added keyboard shortcut 'm' for quick access
-
-2. Reorganized gallery drawer:
-   - Created "subcollections" section at bottom of drawer
-   - Grouped monochrome and no-liner buttons together
-   - Added random button below on separate line
-   - Simplified button text and layout
-
-3. UI/UX Improvements:
-   - Consistent button styling across subcollections
-   - Keyboard shortcuts highlighted with rainbow animation
-   - Responsive layout with flex containers
-   - Clear visual hierarchy in drawer sections
+   - Created subcollections section in drawer
+   - Added keyboard shortcut 'm' for monochromes
 
 ## Next Steps
 1. Consider adding counts to subcollection buttons (e.g., "no-liners (32)")
@@ -35,6 +32,14 @@
 None pending
 
 ## Notes
+- Keyboard shortcuts now follow a consistent pattern:
+  * 'e' - toggle drawer
+  * ESC - close drawer
+  * 'm' - monochromes
+  * 'n' - no-liners
+  * 'r' - random
+  * ←/→ - pagination
+- All shortcuts respect input field focus
 - Monochrome detection script successfully identifies both RGB triplets and color doublets
 - Gallery page now has three main sections: search, filters, and subcollections
 - All special views (monochrome, no-liners, random) maintain consistent pagination behavior 

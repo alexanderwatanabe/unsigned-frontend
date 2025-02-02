@@ -33,10 +33,17 @@
 
 5. Keyboard Navigation:
    - 'e' - Toggle extras drawer
+   - ESC - Close drawer (prioritized)
    - 'm' - Show monochromes
    - 'n' - Show no-liners
    - 'r' - Toggle random view
    - ←/→ - Navigate pages
+
+6. Event Handling Patterns:
+   - Early return for input field focus
+   - Prioritized ESC handling
+   - Mode-specific key handling
+   - Consistent shortcut system
 
 ## Architecture
 1. Frontend Framework:
