@@ -4,6 +4,7 @@
   import { convertRawMetadata } from '$lib/types';
   import { browser } from '$app/environment';
   import noLinersData from '$assets/noliners.json';
+  import monochromesData from '$assets/monochromes.json';
   
   // Constants - declare these first
   const TOTAL_ITEMS = 31119;
@@ -119,9 +120,10 @@
 
   // Add near the top with other state variables
   let noLinerIndices = $state<number[]>([]);
+  let monochromeIndices = $state<number[]>([]);
 
   // Add state to track current view
-  let currentView = $state<'all' | 'random' | 'noliners'>('all');
+  let currentView = $state<'all' | 'random' | 'noliners' | 'monochromes'>('all');
 
   // Update loadMetadata to use imported no-liners data
   async function loadMetadata() {
@@ -131,6 +133,7 @@
       const metadataResponse = await fetch('/api/metadata');
       const rawMetadata: RawUnsigMetadata[] = await metadataResponse.json();
       noLinerIndices = noLinersData;
+      monochromeIndices = monochromesData;
       
       // Convert raw metadata to proper types
       allMetadata = rawMetadata.map(convertRawMetadata);
@@ -634,6 +637,8 @@
       }
     } else if (event.key.toLowerCase() === 'n') {
       showNoLiners();
+    } else if (event.key.toLowerCase() === 'm') {
+      showMonochromes();
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       // Don't handle arrow keys in random mode since it doesn't use pagination
       if (randomMode) return;
@@ -647,6 +652,42 @@
       isDrawerOpen = !isDrawerOpen;
     }
   }
+
+  // Add showMonochromes function
+  function showMonochromes() {
+    currentView = 'monochromes';
+    randomMode = false;
+    currentPage = 1;
+    filteredTotalItems = monochromeIndices.length;
+    // Clear filters when entering monochrome mode
+    activeFilters = [];
+    pendingFilters = [];
+  }
+
+  // Update effect to handle page changes for monochromes
+  $effect(() => {
+    if ((currentView === 'noliners' || currentView === 'monochromes') && !isLoading) {
+      const indices = currentView === 'noliners' ? noLinerIndices : monochromeIndices;
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = Math.min(start + itemsPerPage, indices.length);
+      const pageIndexes = indices.slice(start, end);
+      
+      filteredTotalItems = indices.length;
+      items = pageIndexes.map(index => ({
+        id: index,
+        imageUrl: getImageUrl(index),
+        properties: allMetadata[index]?.properties || {
+          colors: [],
+          distributions: [],
+          multipliers: [],
+          rotations: []
+        }
+      }));
+
+      // Prefetch adjacent pages
+      prefetchAdjacentPages(indices);
+    }
+  });
 
   onMount(() => {
     loadMetadata();
@@ -782,42 +823,27 @@
       </div>
 
       <div class="drawer-section">
-        <h3>random</h3>
-        <div class="random-section">
-          {#if !randomMode}
+        <h3>subcollections</h3>
+        <div class="unique-unsigs">
+          <div class="top-row">
             <button 
-              class="random-button" 
-              onclick={() => loadRandomItems(false)}
+              class="monochrome-button" 
+              onclick={showMonochromes}
             >
-              show {itemsPerPage} <span class="shortcut">r</span>andom unsigs
+              <span class="shortcut">m</span>onochromes
             </button>
-          {:else}
-            <div class="random-buttons">
-              <button 
-                class="random-button" 
-                onclick={() => loadRandomItems(true)}
-              >
-                new <span class="shortcut">r</span>andom set
-              </button>
-              <button 
-                class="random-button secondary" 
-                onclick={exitRandomMode}
-              >
-                exit random mode
-              </button>
-            </div>
-          {/if}
-        </div>
-      </div>
-
-      <div class="drawer-section">
-        <h3>no-liners</h3>
-        <div class="no-liner-section">
+            <button 
+              class="no-liner-button" 
+              onclick={showNoLiners}
+            >
+              <span class="shortcut">n</span>o-liners
+            </button>
+          </div>
           <button 
-            class="no-liner-button" 
-            onclick={showNoLiners}
+            class="random-button" 
+            onclick={() => loadRandomItems(randomMode)}
           >
-            show <span class="shortcut">n</span>o-liners
+            <span class="shortcut">r</span>andom
           </button>
         </div>
       </div>
@@ -1532,5 +1558,51 @@
     height: 32px;
     text-align: center;
     padding: 0 0.5rem;
+  }
+
+  .monochrome-section {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  .monochrome-button {
+    background-color: var(--primary-color, #4a90e2);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+  }
+
+  .monochrome-button:hover {
+    background-color: var(--primary-color-hover, #357abd);
+  }
+
+  .unique-unsigs {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  .unique-unsigs .top-row {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .unique-unsigs .top-row button {
+    flex: 1;
+    min-width: 120px;
+    max-width: 160px;
+  }
+
+  .unique-unsigs .random-button {
+    width: 100%;
+    max-width: 335px;
+    margin: 0 auto;
   }
 </style> 

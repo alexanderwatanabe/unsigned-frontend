@@ -5,8 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0] - 2024-03-20
+## [0.4.0] - 2024-03-21
 
+### Added
+- New monochrome collection view with pagination
+- Keyboard shortcut 'm' for monochrome view
+- Subcollections section in drawer
+- Consistent button styling for special collections
+
+### Changed
+- Reorganized drawer controls for better UX
+- Moved special collections to bottom of drawer
+- Simplified button text across collections
+- Improved layout with two-row design for subcollections
+- Random button now appears below other collections
+
+### Removed
+- Separate random section
+- "show" prefix from collection button text
+- Exit random mode button (now handled by view transitions)
+
+## [Unreleased]
 ### Added
 - Arrow key navigation for pagination (←/→)
 - 'e' keyboard shortcut to toggle extras drawer
@@ -30,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - Added safe event handling for keyboard shortcuts
 
-## [0.2.0] - 2024-03-19
+## [0.3.0] - 2024-03-20
 
 ### Added
 - No-liner view mode with pagination

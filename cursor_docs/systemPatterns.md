@@ -1,5 +1,43 @@
 # System Patterns
 
+## Component Architecture
+
+### Gallery Page
+1. Core Components:
+   - Grid display for NFTs
+   - Drawer for controls
+   - Pagination system
+
+2. State Management:
+   - Uses Svelte 5 runes for reactivity
+   - Centralized view state (`currentView`)
+   - Separate states for different modes
+
+3. View Types:
+   - 'all' (default grid view)
+   - 'random' (random selection)
+   - 'noliners' (special collection)
+   - 'monochromes' (special collection)
+
+4. Subcollections Pattern:
+   - Located at bottom of drawer
+   - Consistent button styling
+   - Two-row layout:
+     * Top row: Special collections (monochromes, no-liners)
+     * Bottom row: Utility views (random)
+   - Each subcollection maintains its own:
+     * Data source (JSON file)
+     * View state
+     * Pagination
+     * Keyboard shortcut
+
+5. Keyboard Navigation:
+   - 'e' - Toggle extras drawer
+   - 'm' - Show monochromes
+   - 'n' - Show no-liners
+   - 'r' - Toggle random view
+   - ←/→ - Navigate pages
+
 ## Architecture
 1. Frontend Framework:
    - SvelteKit for server-side rendering and routing
