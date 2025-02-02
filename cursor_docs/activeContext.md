@@ -1,5 +1,47 @@
 # Active Context
 
+## Current Work
+- Optimizing animation system in the NFT viewer
+- Working on `animation` branch (tagged as WIP)
+- Focus on improving performance and visual quality of layer animations
+
+## Recent Changes
+1. Animation System Optimization:
+   - Reduced animation resolution to 1024x1024 for better performance
+   - Implemented row/column-based animation processing
+   - Added willReadFrequently attribute to canvas context
+   - Optimized buffer handling using 1D arrays
+
+2. Code Structure:
+   - Refactored PropertyBuffer interface to use 1D arrays
+   - Improved memory efficiency in animation processing
+   - Enhanced direction-based processing (vertical/horizontal)
+
+## Next Steps
+1. Animation Improvements:
+   - Test performance with new buffer system
+   - Verify visual quality at 1024x1024
+   - Consider adding progress indicators
+   - Optimize frame generation and capture
+
+2. Code Quality:
+   - Add TypeScript type safety improvements
+   - Document new animation system
+   - Add performance metrics
+   - Consider adding unit tests
+
+## Current Issues
+- Need to verify aliasing at 1024x1024 resolution
+- Monitor memory usage with new buffer system
+- Ensure smooth transitions between layers
+
+## Branch Status
+- Main branch: stable
+- Animation branch: WIP
+  - Purpose: Animation system optimization
+  - Status: In development
+  - Changes: Buffer optimization, resolution adjustment
+
 ## Current Task
 - Implementing keyboard shortcuts for better UX
 - Added ESC key to close drawer

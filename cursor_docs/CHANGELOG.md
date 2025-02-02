@@ -99,4 +99,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - CORS compliance for image loading
-- XSS prevention in search and filters 
+- XSS prevention in search and filters
+
+## [Unreleased] - Animation Optimization
+### Added
+- Row/column-based animation processing
+- 1D buffer system for efficient memory usage
+- willReadFrequently canvas context attribute
+- New animation branch for development
+
+### Changed
+- Reduced animation resolution to 1024x1024
+- Refactored PropertyBuffer to use 1D arrays
+- Updated animation processing for better performance
+- Modified frame generation system
+
+### Optimized
+- Memory usage in animation system
+- Frame processing efficiency
+- Canvas rendering performance
+- Buffer management system
+
+## [0.2.0] - 2024-02-02
+### Added
+- Animation system with frame capture
+- Video export functionality
+- Layer toggling system
+- Download options for different resolutions
+
+### Changed
+- Updated canvas handling
+- Improved state management
+- Enhanced error handling
+- Refined UI components
+
+### Fixed
+- Memory leaks in animation
+- Canvas scaling issues
+- Frame rate inconsistencies
+- State management bugs
+
+## [0.1.0] - 2024-02-01
+### Added
+- Initial NFT viewer implementation
+- Basic animation support
+- Property table display
+- Fullscreen mode
+
+### Changed
+- Improved image generation
+- Updated distribution calculations
+- Enhanced UI responsiveness
+- Refined code structure
+
+### Fixed
+- Distribution calculation errors
+- Image scaling issues
+- Performance bottlenecks
+- UI inconsistencies 

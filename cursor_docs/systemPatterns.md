@@ -1,5 +1,181 @@
 # System Patterns
 
+## Architecture Overview
+
+### Animation System
+1. Buffer Management:
+   - 1D array buffers for active row/column
+   - Original 2D array stored for reference
+   - Direction-based processing (vertical/horizontal)
+   - Memory-efficient updates
+
+2. Resolution Handling:
+   - Default animation resolution: 1024x1024
+   - Static resolution: 2048x2048 (default), 4096x4096 (fullscreen)
+   - Download resolutions: 4096x4096, 8192x8192, 16384x16384
+   - Dynamic scaling based on context
+
+3. Frame Generation:
+   - Row/column-based processing
+   - Progressive updates
+   - Frame accumulation for video
+   - 60fps target rate
+
+### Core Components
+
+1. Distribution Generation:
+   ```typescript
+   interface Distribution {
+     p_2d: number[][];  // Probability distribution
+     c_2d: number[][];  // Cumulative distribution
+   }
+   ```
+
+2. Property Management:
+   ```typescript
+   interface PropertyBuffer {
+     values: number[];        // Current row/column values
+     original2D: number[][]; // Reference data
+     color: number;         // RGB channel index
+     distribution: string;  // Distribution type
+     rotation: number;     // Rotation angle
+     currentPosition: number; // Current row/column index
+   }
+   ```
+
+3. Animation State:
+   ```typescript
+   interface AnimationState {
+     propertyBuffers: PropertyBuffer[];
+     currentBuffer: number;
+     isComplete: boolean;
+   }
+   ```
+
+## Design Patterns
+
+### Factory Pattern
+- Used for creating Unsig objects
+- Handles property initialization
+- Manages buffer generation
+
+### Observer Pattern
+- Animation frame updates
+- Progress tracking
+- State management
+
+### Strategy Pattern
+- Distribution processing
+- Animation direction handling
+- Buffer management
+
+## Performance Optimizations
+
+1. Memory Management:
+   - 1D array buffers
+   - Progressive loading
+   - Efficient data structures
+   - Minimal state copying
+
+2. Rendering:
+   - willReadFrequently canvas context
+   - Row/column-based updates
+   - Frame accumulation
+   - Efficient pixel manipulation
+
+3. State Management:
+   - Minimal state updates
+   - Efficient data structures
+   - Progressive processing
+   - Smart buffer handling
+
+## Code Organization
+
+### Module Structure
+```
+src/
+  lib/
+    unsig/
+      generator.ts     - Core generation logic
+      animation.ts     - Animation system
+      distributions.ts - Distribution calculations
+      types.ts        - Type definitions
+```
+
+### Component Hierarchy
+```
+NFTViewer
+  ├── Canvas
+  ├── Controls
+  │   ├── AnimationControls
+  │   ├── LayerControls
+  │   └── DownloadControls
+  └── PropertyTable
+```
+
+## Best Practices
+
+1. Type Safety:
+   - Strict TypeScript usage
+   - Interface definitions
+   - Type guards
+   - Proper error handling
+
+2. Performance:
+   - Minimal reflows
+   - Efficient data structures
+   - Smart state management
+   - Memory optimization
+
+3. Code Quality:
+   - Clear documentation
+   - Consistent patterns
+   - Unit testing
+   - Performance monitoring
+
+## Error Handling
+
+1. Animation Errors:
+   ```typescript
+   try {
+     // Animation logic
+   } catch (error) {
+     console.error('Animation error:', error);
+     state.isRendering = false;
+   }
+   ```
+
+2. Buffer Management:
+   ```typescript
+   if (!buffer || buffer.currentPosition >= dim) {
+     return false;
+   }
+   ```
+
+3. State Validation:
+   ```typescript
+   if (state.isComplete || !canvas) {
+     return;
+   }
+   ```
+
+## Testing Strategy
+
+1. Unit Tests:
+   - Buffer operations
+   - State management
+   - Distribution calculations
+
+2. Integration Tests:
+   - Animation system
+   - Frame generation
+   - Video export
+
+3. Performance Tests:
+   - Memory usage
+   - Frame rate
+   - Load times
+
 ## Component Architecture
 
 ### Gallery Page
