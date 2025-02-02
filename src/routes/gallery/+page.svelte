@@ -629,6 +629,11 @@
       return;
     }
 
+    if (event.key === 'Escape' && isDrawerOpen) {
+      isDrawerOpen = false;
+      return;
+    }
+
     if (event.key.toLowerCase() === 'r') {
       if (!randomMode) {
         loadRandomItems(false);
