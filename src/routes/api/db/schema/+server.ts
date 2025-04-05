@@ -2,9 +2,13 @@ import { neon } from '@neondatabase/serverless';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-// Use environment variable for database connection
-const connectionString: string = process.env.DATABASE_URL as string;
-const sql = neon(connectionString);
+// Get database connection string from environment
+// This approach works both with SvelteKit's $env modules and with process.env for Vercel
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('DATABASE_URL environment variable is not set');
+}
+const sql = neon(connectionString!); // Non-null assertion
 
 export const POST: RequestHandler = async () => {
   try {
