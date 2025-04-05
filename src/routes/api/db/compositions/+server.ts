@@ -1,14 +1,11 @@
-import { neon } from '@neondatabase/serverless';
+import { neon, type NeonQueryFunction } from '@neondatabase/serverless';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-// Get database connection string from environment
-// This approach works both with SvelteKit's $env modules and with process.env for Vercel
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error('DATABASE_URL environment variable is not set');
-}
-const sql = neon(connectionString!); // Non-null assertion
+// Get database connection string from environment with fallback for build time
+const connectionString = process.env.DATABASE_URL || '';
+// Only initialize neon if we have a connection string
+const sql = connectionString ? neon(connectionString) : null;
 
 // Type definitions for our composition data
 type GridPosition = {
@@ -22,8 +19,25 @@ type CompositionData = {
   positions: GridPosition[];
 };
 
+type Composition = {
+  id: number;
+  transaction_id: string;
+  positions: GridPosition[];
+  created_at: string;
+};
+
 // POST: Store a new composition
 export const POST: RequestHandler = async ({ request }) => {
+  // Return early if no connection string is available (during build)
+  if (!connectionString || !sql) {
+    console.warn('DATABASE_URL environment variable is not set');
+    return json({
+      success: false,
+      error: 'Database connection not configured',
+      message: 'DATABASE_URL environment variable is not set'
+    }, { status: 500 });
+  }
+
   try {
     const data: CompositionData = await request.json();
     
@@ -44,7 +58,8 @@ export const POST: RequestHandler = async ({ request }) => {
     
     // Store the composition with positions as JSON
     try {
-      const result = await sql`
+      // We've already checked that sql is not null above
+      const result = await sql!`
         INSERT INTO compositions (transaction_id, positions)
         VALUES (${data.transactionId}, ${JSON.stringify(data.positions)})
         RETURNING id
@@ -72,12 +87,23 @@ export const POST: RequestHandler = async ({ request }) => {
 
 // GET: Retrieve all compositions or a specific one by ID
 export const GET: RequestHandler = async ({ url }) => {
+  // Return early if no connection string is available (during build)
+  if (!connectionString || !sql) {
+    console.warn('DATABASE_URL environment variable is not set');
+    return json({
+      success: false,
+      error: 'Database connection not configured',
+      message: 'DATABASE_URL environment variable is not set'
+    }, { status: 500 });
+  }
+
   try {
     const transactionId = url.searchParams.get('transactionId');
     
     if (transactionId) {
       // Get a specific composition
-      const composition = await sql`
+      // We've already checked that sql is not null above
+      const composition = await sql!`
         SELECT 
           id, 
           transaction_id, 
@@ -107,7 +133,8 @@ export const GET: RequestHandler = async ({ url }) => {
       });
     } else {
       // Get all compositions
-      const compositions = await sql`
+      // We've already checked that sql is not null above
+      const compositions = await sql!`
         SELECT 
           id, 
           transaction_id, 
@@ -121,7 +148,7 @@ export const GET: RequestHandler = async ({ url }) => {
       
       return json({
         success: true,
-        compositions: compositions.map(c => ({
+        compositions: compositions.map((c: any) => ({
           id: c.id,
           transactionId: c.transaction_id,
           positions: c.positions,

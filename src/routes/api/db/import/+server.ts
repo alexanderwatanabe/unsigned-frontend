@@ -2,13 +2,10 @@ import { neon } from '@neondatabase/serverless';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-// Get database connection string from environment
-// This approach works both with SvelteKit's $env modules and with process.env for Vercel
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error('DATABASE_URL environment variable is not set');
-}
-const sql = neon(connectionString!); // Non-null assertion
+// Get database connection string from environment with fallback for build time
+const connectionString = process.env.DATABASE_URL || '';
+// Only initialize neon if we have a connection string
+const sql = connectionString ? neon(connectionString) : null;
 
 // Parse transaction metadata to extract positions
 function parseMetadata(metadataArray: any[]): { positions: any[] } {
@@ -53,6 +50,16 @@ function parseMetadata(metadataArray: any[]): { positions: any[] } {
 
 // POST: Import a composition with transaction ID and metadata
 export const POST: RequestHandler = async ({ request }) => {
+  // Return early if no connection string is available (during build)
+  if (!connectionString || !sql) {
+    console.warn('DATABASE_URL environment variable is not set');
+    return json({
+      success: false,
+      error: 'Database connection not configured',
+      message: 'DATABASE_URL environment variable is not set'
+    }, { status: 500 });
+  }
+
   try {
     const data = await request.json();
     
@@ -85,7 +92,7 @@ export const POST: RequestHandler = async ({ request }) => {
     
     // Store the composition in the database
     try {
-      const result = await sql`
+      const result = await sql!`
         INSERT INTO compositions (transaction_id, positions)
         VALUES (${data.transactionId}, ${JSON.stringify(positions)})
         RETURNING id
