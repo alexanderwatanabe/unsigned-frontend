@@ -3,9 +3,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 // Get database connection string from environment with fallback for build time
-const connectionString = process.env.POSTGRES_URL || '';
+const connectionString = "postgres://neondb_owner:npg_GoYmh8Iknz0f@ep-delicate-shadow-a2mhoq1s-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
 // Only initialize neon if we have a connection string
-const sql = connectionString ? neon(connectionString) : null;
+const sql = neon(connectionString);
 
 // Type definitions for our composition data
 type GridPosition = {

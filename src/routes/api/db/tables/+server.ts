@@ -3,7 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { POSTGRES_URL } from '$env/static/private';
 
-const connectionString: string = POSTGRES_URL;
+const connectionString: string = "postgres://neondb_owner:npg_GoYmh8Iknz0f@ep-delicate-shadow-a2mhoq1s-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
 const sql = neon(connectionString);
 
 export const GET: RequestHandler = async () => {

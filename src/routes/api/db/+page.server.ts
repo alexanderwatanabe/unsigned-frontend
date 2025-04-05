@@ -4,7 +4,7 @@ import type { PageServerLoad } from './$types';
 import { POSTGRES_URL } from '$env/static/private';
 
 // Get database connection string from environment with fallback for build time
-const connectionString = POSTGRES_URL;
+const connectionString = "postgres://neondb_owner:npg_GoYmh8Iknz0f@ep-delicate-shadow-a2mhoq1s-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require";
 // Only initialize neon if we have a connection string
 const sql = neon(connectionString);
 
