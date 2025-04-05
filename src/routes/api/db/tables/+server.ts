@@ -1,8 +1,9 @@
 import { neon } from '@neondatabase/serverless';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { DATABASE_URL } from '$env/static/private';
 
-const connectionString: string = process.env.DATABASE_URL as string;
+const connectionString: string = DATABASE_URL;
 const sql = neon(connectionString);
 
 export const GET: RequestHandler = async () => {
