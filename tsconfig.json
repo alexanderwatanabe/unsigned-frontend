@@ -10,10 +10,7 @@
 		"forceConsistentCasingInFileNames": true,
 		"outDir": "./dist",
 		"rootDir": ".",
-		"paths": {
-			"$lib/*": ["./src/lib/*"],
-			"$assets/*": ["./src/assets/*"]
-		}
+		"allowArbitraryExtensions": true
 	},
 	"include": ["src/**/*", "scripts/**/*"],
 	"exclude": ["node_modules"]

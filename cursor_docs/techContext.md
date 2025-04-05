@@ -22,6 +22,12 @@
 - Prettier for formatting
 - Vitest for testing
 
+### Blockchain Integration
+- Mesh SDK (@meshsdk/svelte)
+- Cardano blockchain
+- Transaction building
+- Asset management
+
 ### Deployment
 - Vercel for hosting
 - AWS S3 for image assets
@@ -87,6 +93,8 @@ PUBLIC_NOLINERS_URL=
 - Clean state transitions
 - Proper cleanup on unmount
 - Mode-specific behaviors
+- Grid state management
+- Transaction state handling
 
 ### Security
 - No sensitive data in frontend
@@ -94,6 +102,7 @@ PUBLIC_NOLINERS_URL=
 - Content Security Policy
 - XSS prevention
 - Safe event handling
+- Secure transaction building
 
 ### Accessibility
 - WCAG 2.1 compliance
@@ -108,6 +117,8 @@ PUBLIC_NOLINERS_URL=
 - Clear loading states
 - Responsive layout
 - Touch support (planned)
+- Grid-based interactions
+- Transaction feedback
 
 ## Development Practices
 1. Type-safe development
@@ -124,6 +135,7 @@ PUBLIC_NOLINERS_URL=
 - TailwindCSS with typography plugin
 - Vercel Analytics
 - AWS SDK for image handling
+- Mesh SDK for wallet integration
 
 ### Development
 - TypeScript
@@ -132,4 +144,48 @@ PUBLIC_NOLINERS_URL=
 - Various build tools and adapters
 - Testing utilities
 
-Note: Dependencies will be updated as new requirements emerge. 
+Note: Dependencies will be updated as new requirements emerge.
+
+## Wallet Integration
+- Mesh SDK (@meshsdk/svelte)
+- Cardano blockchain integration
+- Asset filtering and parsing
+- Transaction building
+- UTxO management
+
+## Image Handling
+- S3 bucket hosting: s3.ap-northeast-1.amazonaws.com
+- Multiple resolution tiers
+- Lazy loading and prefetching
+- Grid-based optimization
+
+## State Management
+- Svelte 5 runes ($state, $derived)
+- Browser environment detection
+- Reactive wallet state
+- Grid position tracking
+- Transaction building state
+
+## Data Processing
+- Asset unit parsing
+- Index extraction
+- Policy ID filtering
+- Sorting and pagination
+- Grid metadata handling
+- Transaction preparation
+
+## Grid Management
+- Dynamic sizing (m x n)
+- Position tracking
+- Cell interaction
+- Clear functionality
+- Visual feedback
+- Selection handling
+
+## Transaction Building
+- Single UTxO output
+- Grid metadata
+- Asset collection
+- Error handling
+- Loading states
+- Success feedback 

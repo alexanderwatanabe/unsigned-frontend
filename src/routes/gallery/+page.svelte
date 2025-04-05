@@ -5,6 +5,9 @@
   import { browser } from '$app/environment';
   import noLinersData from '$assets/noliners.json';
   import monochromesData from '$assets/monochromes.json';
+  import UnsigGrid from '$lib/components/UnsigGrid.svelte';
+  import Pagination from '$lib/components/Pagination.svelte';
+  import { getUnsigMetadata } from '$lib/unsigs';
   
   // Constants - declare these first
   const TOTAL_ITEMS = 31119;
@@ -125,18 +128,21 @@
   // Add state to track current view
   let currentView = $state<'all' | 'random' | 'noliners' | 'monochromes'>('all');
 
+  // Add animation state
+  let activeAnimation = $state<string | null>(null);
+
   // Update loadMetadata to use imported no-liners data
   async function loadMetadata() {
     if (!browser) return;
     
     try {
-      const metadataResponse = await fetch('/api/metadata');
-      const rawMetadata: RawUnsigMetadata[] = await metadataResponse.json();
+      // Get metadata directly from the imported function
+      const metadata = getUnsigMetadata();
       noLinerIndices = noLinersData;
       monochromeIndices = monochromesData;
       
-      // Convert raw metadata to proper types
-      allMetadata = rawMetadata.map(convertRawMetadata);
+      // Convert metadata to proper types
+      allMetadata = metadata;
       
       // Extract unique values for each property type
       const properties = new Map<string, Set<string | number>>();
@@ -172,6 +178,7 @@
       isInitialized = true;
     } catch (error) {
       console.error('Error loading metadata:', error);
+      isInitialized = false;
     }
   }
 
@@ -614,13 +621,13 @@
   let isDrawerOpen = $state(false);
 
   // Add derived state for image resolution
-  let imageResolution = $derived(() => {
+  function getImageResolution(): number {
     if (itemsPerPage === 1) return 1024;
     if (itemsPerPage <= 16) return 256;
     return 128;
-  });
+  }
 
-  // Add keyboard handler
+  // Update keyboard handler to include vim keys and animations
   function handleKeydown(event: KeyboardEvent) {
     // Only handle if not in an input field
     if (event.target instanceof HTMLInputElement || 
@@ -629,42 +636,85 @@
       return;
     }
 
-    if (event.key === 'Escape') {
-      if (isDrawerOpen) {
-        isDrawerOpen = false;
-      } else {
-        // Clear all filters and return to default view
-        currentView = 'all';
-        randomMode = false;
-        currentPage = 1;
-        idSearch = '';
-        activeFilters = [];
-        pendingFilters = [];
-      }
-      return;
-    }
-
-    if (event.key.toLowerCase() === 'r') {
-      if (!randomMode) {
-        loadRandomItems(false);
-      } else {
-        loadRandomItems(true);
-      }
-    } else if (event.key.toLowerCase() === 'n') {
-      showNoLiners();
-    } else if (event.key.toLowerCase() === 'm') {
-      showMonochromes();
-    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      // Don't handle arrow keys in random mode since it doesn't use pagination
-      if (randomMode) return;
+    // Handle arrow keys and vim navigation
+    switch (event.key.toLowerCase()) {
+      case 'arrowleft':
+      case 'h':
+        event.preventDefault();
+        if (!randomMode && currentPage > 1) {
+          activeAnimation = 'slide-left';
+          currentPage--;
+          setTimeout(() => activeAnimation = null, 300);
+        }
+        break;
       
-      if (event.key === 'ArrowLeft' && currentPage > 1) {
-        currentPage = currentPage - 1;
-      } else if (event.key === 'ArrowRight' && currentPage < totalPages) {
-        currentPage = currentPage + 1;
-      }
-    } else if (event.key.toLowerCase() === 'e') {
-      isDrawerOpen = !isDrawerOpen;
+      case 'arrowright':
+      case 'l':
+        event.preventDefault();
+        if (!randomMode && currentPage < totalPages) {
+          activeAnimation = 'slide-right';
+          currentPage++;
+          setTimeout(() => activeAnimation = null, 300);
+        }
+        break;
+      
+      case 'j':
+        event.preventDefault();
+        const currentIndex = PAGE_SIZES.indexOf(itemsPerPage);
+        if (currentIndex > 0) {
+          activeAnimation = 'grid-shrink';
+          const newSize = PAGE_SIZES[currentIndex - 1];
+          displayItemsPerPage = newSize;
+          updateItemsPerPage(newSize);
+          setTimeout(() => activeAnimation = null, 300);
+        }
+        break;
+      
+      case 'k':
+        event.preventDefault();
+        const nextIndex = PAGE_SIZES.indexOf(itemsPerPage) + 1;
+        if (nextIndex < PAGE_SIZES.length) {
+          activeAnimation = 'grid-grow';
+          const newSize = PAGE_SIZES[nextIndex];
+          displayItemsPerPage = newSize;
+          updateItemsPerPage(newSize);
+          setTimeout(() => activeAnimation = null, 300);
+        }
+        break;
+
+      // Keep existing shortcuts
+      case 'escape':
+        if (isDrawerOpen) {
+          isDrawerOpen = false;
+        } else {
+          currentView = 'all';
+          randomMode = false;
+          currentPage = 1;
+          idSearch = '';
+          activeFilters = [];
+          pendingFilters = [];
+        }
+        break;
+
+      case 'r':
+        if (!randomMode) {
+          loadRandomItems(false);
+        } else {
+          loadRandomItems(true);
+        }
+        break;
+
+      case 'n':
+        showNoLiners();
+        break;
+
+      case 'm':
+        showMonochromes();
+        break;
+
+      case 'e':
+        isDrawerOpen = !isDrawerOpen;
+        break;
     }
   }
 
@@ -865,96 +915,31 @@
     </div>
   </div>
 
-  <div class="main-content">
-    <div class="grid" style="--grid-size: {gridSize}" data-resolution={imageResolution}>
-      {#if isLoading}
-        <div class="loading-overlay">
-          <div class="loading-dialog">
-            loading...
-          </div>
-        </div>
-      {/if}
-      
-      {#if items.length > 0}
-        {#each items as item}
-          <a href="/nft/{item.id}" class="grid-item">
-            <img src={item.imageUrl} alt={`NFT ${item.id}`} loading="lazy" />
-            <div class="overlay">
-              <span class="index">#{item.id.toString().padStart(5, '0')}</span>
-            </div>
-          </a>
-        {/each}
-      {:else if !isLoading}
-        <div class="empty-state">
-          <p>no items found</p>
-        </div>
-      {/if}
-    </div>
-
-    <div class="pagination-controls" class:hidden={randomMode}>
-      <div class="pagination">
-        <button 
-          disabled={currentPage === 1} 
-          onclick={() => {
-            if (currentPage > 1) {
-              currentPage = currentPage - 1;
-            }
-          }}
-        >
-          ←
-        </button>
-        <span>page </span>
-        <input
-          type="number"
-          min="1"
-          max={totalPages}
-          value={currentPage}
-          oninput={(e) => {
-            const target = e.target as HTMLInputElement;
-            const value = parseInt(target.value);
-            if (!isNaN(value) && value >= 1 && value <= totalPages) {
-              currentPage = value;
-            }
-          }}
-        />
-        <span>of {totalPages}</span>
-        <button 
-          disabled={currentPage === totalPages} 
-          onclick={() => {
-            if (currentPage < totalPages) {
-              currentPage = currentPage + 1;
-            }
-          }}
-        >
-          →
-        </button>
-      </div>
-
-      <div class="items-per-page">
-        <span>items per page: {displayItemsPerPage}</span>
-        <input 
-          type="range"
-          min="0"
-          max={PAGE_SIZES.length - 1}
-          step="1"
-          value={PAGE_SIZES.indexOf(itemsPerPage)}
-          oninput={(e) => {
-            const target = e.target as HTMLInputElement;
-            const value = parseInt(target.value);
-            if (!isNaN(value)) {
-              displayItemsPerPage = PAGE_SIZES[value];
-            }
-          }}
-          onchange={(e) => {
-            const target = e.target as HTMLInputElement;
-            const value = parseInt(target.value);
-            if (!isNaN(value)) {
-              updateItemsPerPage(PAGE_SIZES[value]);
-              displayItemsPerPage = PAGE_SIZES[value];
-            }
-          }}
+  <div class="grid-container">
+    <div class="main-content">
+      <div class="grid-wrapper" 
+           class:animate-left={activeAnimation === 'slide-left'} 
+           class:animate-right={activeAnimation === 'slide-right'}
+           class:animate-shrink={activeAnimation === 'grid-shrink'}
+           class:animate-grow={activeAnimation === 'grid-grow'}>
+        <UnsigGrid
+          items={items}
+          loading={isLoading}
+          {gridSize}
+          imageResolution={getImageResolution()}
         />
       </div>
+
+      {#if !randomMode}
+        <Pagination
+          {currentPage}
+          {totalPages}
+          {itemsPerPage}
+          {displayItemsPerPage}
+          onPageChange={loadPage}
+          onItemsPerPageChange={updateItemsPerPage}
+        />
+      {/if}
     </div>
   </div>
 </div>
@@ -1615,9 +1600,70 @@
     max-width: 160px;
   }
 
-  .unique-unsigs .random-button {
+  .unique-unsigs .top-row button {
     width: 100%;
     max-width: 335px;
     margin: 0 auto;
+  }
+
+  .grid-wrapper {
+    width: 100%;
+    max-width: min(90vw, calc(90vh * 1));
+    aspect-ratio: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+
+  /* Ensure grid wrapper maintains square ratio on smaller screens */
+  @media (max-width: 768px) {
+    .grid-wrapper {
+      max-width: 95vw;
+      max-height: 95vw;
+    }
+  }
+
+  /* Navigation animations */
+  .animate-left {
+    animation: slideLeft 0.3s ease-in-out;
+  }
+
+  .animate-right {
+    animation: slideRight 0.3s ease-in-out;
+  }
+
+  .animate-shrink {
+    animation: gridShrink 0.3s ease-in-out;
+  }
+
+  .animate-grow {
+    animation: gridGrow 0.3s ease-in-out;
+  }
+
+  @keyframes slideLeft {
+    0% { transform: translateX(0); opacity: 1; }
+    15% { transform: translateX(-5px); opacity: 0.9; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes slideRight {
+    0% { transform: translateX(0); opacity: 1; }
+    15% { transform: translateX(5px); opacity: 0.9; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes gridShrink {
+    0% { transform: scale(1); opacity: 1; }
+    15% { transform: scale(0.99); opacity: 0.95; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes gridGrow {
+    0% { transform: scale(1); opacity: 1; }
+    15% { transform: scale(1.01); opacity: 0.95; }
+    100% { transform: scale(1); opacity: 1; }
   }
 </style> 

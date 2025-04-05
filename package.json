@@ -23,9 +23,14 @@
 		"tailwindcss": "^3.4.17",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.7.3",
-		"vite": "^6.0.0"
+		"vite": "^6.0.0",
+		"vite-plugin-node-polyfills": "^0.23.0"
 	},
 	"dependencies": {
+		"@blockfrost/blockfrost-js": "^6.0.0",
+		"@meshsdk/core": "^1.9.0-beta.28",
+		"@meshsdk/svelte": "^1.9.0-beta.1",
+		"@neondatabase/serverless": "^1.0.0",
 		"@vercel/analytics": "^1.4.1"
 	}
 }

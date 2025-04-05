@@ -25,6 +25,8 @@
       imageUrl: string;
       opacity: number;
       zIndex: number;
+      id: string; // Add an ID to track layers
+      transitioning: boolean; // Track if a layer is currently transitioning
     }[];
     activeLayerIndices: Set<number>;  // Track which layers are active
     isGeneratingLargeImage: boolean;  // Add this to track large image generation
@@ -44,6 +46,43 @@
   };
 
   let canvas: HTMLCanvasElement;
+  // Map to track transition end listeners
+  let transitionListeners: Map<string, (event: TransitionEvent) => void> = new Map();
+
+  // Helper to create unique IDs
+  function generateLayerId(): string {
+    return `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Helper to wait for a transition to complete
+  function waitForTransition(layerId: string): Promise<void> {
+    return new Promise((resolve) => {
+      const listener = (event: TransitionEvent) => {
+        if (event.propertyName === 'opacity') {
+          resolve();
+        }
+      };
+      
+      // Store the listener to remove it later
+      transitionListeners.set(layerId, listener);
+    });
+  }
+
+  // Add this function to handle transition end events
+  function handleTransitionEnd(event: TransitionEvent, layerId: string) {
+    if (event.propertyName === 'opacity') {
+      const listener = transitionListeners.get(layerId);
+      if (listener) {
+        transitionListeners.delete(layerId);
+        
+        // Find the layer and mark it as not transitioning
+        const layerIndex = state.layers.findIndex(l => l.id === layerId);
+        if (layerIndex >= 0) {
+          state.layers[layerIndex].transitioning = false;
+        }
+      }
+    }
+  }
 
   // Add validation for navigation
   function isValidNftId(id: number): boolean {
@@ -99,19 +138,46 @@
         return;
       }
 
-      // Preload the image before showing it
-      await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = newImageUrl;
+      // Create a new layer with a unique ID
+      const newLayerId = generateLayerId();
+      
+      // Add the new layer with opacity 0
+      state.layers = [
+        ...state.layers,
+        {
+          imageUrl: newImageUrl,
+          opacity: 0,
+          zIndex: 1,
+          id: newLayerId,
+          transitioning: true
+        }
+      ];
+      
+      // Short delay to ensure DOM update
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      // Fade in the new layer
+      const newLayerIndex = state.layers.length - 1;
+      state.layers[newLayerIndex].opacity = 1;
+      
+      // Wait for fade-in to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Fade out all other layers
+      state.layers = state.layers.map((layer, index) => {
+        if (index !== newLayerIndex) {
+          return { ...layer, opacity: 0, transitioning: true };
+        }
+        return layer;
       });
-
-      // Directly set the new state with a single layer
+      
+      // Wait for fade-out to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Keep only the new layer
       state.layers = [{
-        imageUrl: newImageUrl,
-        opacity: 1,
-        zIndex: 1
+        ...state.layers[newLayerIndex],
+        transitioning: false
       }];
       
       state.isComplete = true;
@@ -189,14 +255,17 @@
       
       console.log(`Starting progressive render for unsig ${unsig.index} with ${unsig.num_props} layers`);
       
-      // Start with black background at highest z-index
+      // Start with black background
+      const backgroundId = generateLayerId();
       state.layers = [{
         imageUrl: '',  // Empty black layer
         opacity: 1,
-        zIndex: unsig.num_props * 2  // Double the z-index range to ensure proper stacking
+        zIndex: 999,  // Highest z-index
+        id: backgroundId,
+        transitioning: false
       }];
 
-      // Generate each layer
+      // Generate and display each layer sequentially
       for (let i = 1; i <= unsig.num_props; i++) {
         state.currentLayer = i;
         console.log(`Rendering layer ${i} of ${unsig.num_props}`);
@@ -205,60 +274,74 @@
         const newImageUrl = await generateImage(unsig, size, i);
         if (!newImageUrl) continue;
 
-        // Add new layer with z-index matching its layer number
+        // Create a new layer with unique ID
+        const newLayerId = generateLayerId();
+        
+        // Add new layer (invisible initially)
         state.layers = [
           ...state.layers,
           {
             imageUrl: newImageUrl,
-            opacity: 0,  // Start invisible
-            zIndex: i * 2  // Use even numbers for layer z-indices
+            opacity: 0,
+            zIndex: i,
+            id: newLayerId,
+            transitioning: true
           }
         ];
-
-        // Small delay for DOM update
-        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // Fade in new layer
-        const newLayer = state.layers[state.layers.length - 1];
-        newLayer.opacity = 1;
+        // Short delay for DOM update
+        await new Promise(resolve => setTimeout(resolve, 50));
         
-        // Find the top-most visible layer (should be the black overlay or previous layer)
-        const topLayer = state.layers.find(l => l.opacity === 1 && l.zIndex > i * 2);
-        if (topLayer) {
-          // For black background or non-final layer, use standard timing
-          const isBlackBackground = !topLayer.imageUrl;
-          const fadeDelay = isBlackBackground ? 100 : 500;
+        // Find the newly added layer
+        const newLayerIndex = state.layers.length - 1;
+        
+        // Fade in the new layer
+        state.layers[newLayerIndex].opacity = 1;
+        
+        // Wait for the new layer to become fully visible
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        
+        // Now find the previous visible layer to fade out (if this isn't the first layer)
+        if (i > 1) {
+          const prevLayerIndex = state.layers.findIndex(layer => 
+            layer.opacity === 1 && layer.zIndex < state.layers[newLayerIndex].zIndex && layer.zIndex > 0
+          );
           
-          // Wait before starting to fade out the top layer
-          await new Promise(resolve => setTimeout(resolve, fadeDelay));
-          topLayer.opacity = 0;
-          
-          // Wait for transition to complete
-          await new Promise(resolve => setTimeout(resolve, isBlackBackground ? 500 : 3000));
-          
-          // Only remove the black background layer, keep others until the end
-          if (isBlackBackground) {
-            state.layers = state.layers.filter(layer => layer.opacity > 0 || layer.imageUrl);
+          if (prevLayerIndex >= 0) {
+            // Fade out the previous layer
+            state.layers[prevLayerIndex].opacity = 0;
+            state.layers[prevLayerIndex].transitioning = true;
+            
+            // Wait for fade-out to complete
+            await new Promise(resolve => setTimeout(resolve, 1200));
           }
         }
-
-        // If this is not the last layer, wait a bit before continuing
-        if (i < unsig.num_props) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // If this is the first non-background layer, fade out the black background
+        if (i === 1) {
+          const bgIndex = state.layers.findIndex(l => l.id === backgroundId);
+          if (bgIndex >= 0) {
+            state.layers[bgIndex].opacity = 0;
+            state.layers[bgIndex].transitioning = true;
+            
+            // Wait for background fade-out
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
+            // Remove background after fade-out
+            state.layers = state.layers.filter(l => l.id !== backgroundId);
+          }
         }
       }
       
-      // After all layers are done, wait for the final transition
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Keep only the final layer after all transitions
+      const finalLayerIndex = state.layers.findIndex(l => 
+        l.opacity === 1 && l.zIndex === unsig.num_props
+      );
       
-      // Keep only the final layer
-      const finalLayer = state.layers[state.layers.length - 1];
-      if (finalLayer) {
-        state.layers = [{
-          ...finalLayer,
-          opacity: 1,
-          zIndex: 1
-        }];
+      if (finalLayerIndex >= 0) {
+        const finalLayer = state.layers[finalLayerIndex];
+        // Remove all other layers
+        state.layers = state.layers.filter((layer, index) => index === finalLayerIndex);
       }
       
       state.isComplete = true;
@@ -460,7 +543,8 @@
               alt={`NFT ${currentId} layer`}
               class="layer"
               style="opacity: {layer.opacity}; z-index: {layer.zIndex};"
-              on:load={handleImageLoad} />
+              on:load={handleImageLoad}
+              on:transitionend={(e) => handleTransitionEnd(e, layer.id)} />
           {/each}
         {/if}
       </div>

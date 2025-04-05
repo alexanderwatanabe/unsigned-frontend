@@ -1,60 +1,104 @@
-# Progress
+# Progress Report
 
 ## Completed Features
 
-### Gallery Page
-1. Core Functionality:
-   - Grid display with dynamic sizing
-   - Pagination controls
-   - Image loading and caching
-   - Responsive layout
+### Core Components
+1. UnsigSelector
+   - ✅ Dropdown-based selection
+   - ✅ Preview of selected unsig
+   - ✅ Grid display of available unsigs
+   - ✅ Index display on hover
+   - ✅ Backdrop for closing
+   - ✅ Responsive layout
 
-2. Search and Filters:
-   - ID search with real-time updates
-   - Multi-property filtering
-   - Filter combination support
-   - Clear filter option
+2. CompositionBuilder
+   - ✅ Dynamic grid layout
+   - ✅ Individual cell selectors
+   - ✅ Row/column addition
+   - ✅ Transaction building (owned mode)
+   - ✅ Grid state management
+   - ✅ Modal handling
+   - ✅ Hex asset name handling
+   - ✅ Position-based metadata
 
-3. Special Collections:
-   - No-liners view with pagination
-   - Monochrome view with pagination
-   - Random view with preloading
-   - Keyboard shortcuts for all views
+3. Transaction Builder
+   - ✅ Direct transaction building
+   - ✅ Cardano wallet integration
+   - ✅ Transaction metadata formatting
+   - ✅ Asset selection and packaging
+   - ✅ Build, sign, and submit flow
+   - ✅ Error handling and logging
 
-4. UI/UX:
-   - Extras drawer with sections
-   - Keyboard navigation
-   - Loading states
-   - Empty state handling
-   - Hover effects on grid items
+### User Interface
+1. Grid Interaction
+   - ✅ Cell selection
+   - ✅ Unsig preview
+   - ✅ Dynamic grid sizing
+   - ✅ Visual feedback
+   - ✅ Cell rotation
+   - ✅ Cell clearing
+
+2. Navigation
+   - ✅ Responsive navbar
+   - ✅ Wallet integration
+   - ✅ Conditional wallet-related links
+   - ✅ Compose and My Unsigs links
+   - ✅ Mobile optimization
 
 ## In Progress
-1. Subcollections Enhancements:
-   - Collection size indicators
-   - Preview images
-   - Tooltips
-   - Additional collections
+1. Transaction UX Refinement
+   - 🔄 Transaction result notifications
+   - 🔄 Transaction history
+   - 🔄 Improved progress indicators
+   - 🔄 Transaction verification
+   
+2. Performance Optimization
+   - 🔄 Asset fetching optimization
+   - 🔄 Grid rendering optimization
+   - 🔄 State management efficiency
 
-## Planned
-1. UI/UX Improvements:
-   - Dark mode support
-   - Touch gestures
-   - Transition animations
-   - Advanced sorting options
+## Planned Features
+1. Enhanced Interaction
+   - ⏳ Touch gesture support
+   - ⏳ Advanced grid controls
+   - ⏳ Quick actions menu
+   - ⏳ Keyboard shortcuts
 
-2. Performance:
-   - Image lazy loading optimization
-   - Cache management
-   - Prefetch optimization
+2. Visual Improvements
+   - ⏳ Transaction success animations
+   - ⏳ Rotation transitions
+   - ⏳ Loading states
+   - ⏳ Help tooltips
 
-3. Features:
-   - User preferences
-   - Collection bookmarks
-   - Share functionality
-   - Advanced filtering
-
-## Technical Debt
-None significant at this time
+3. Mobile Support
+   - ⏳ Touch-first interactions
+   - ⏳ Responsive drawer
+   - ⏳ Mobile grid controls
+   - ⏳ Transaction UI mobile adaptation
 
 ## Known Issues
-None pending 
+- None currently reported
+
+## Next Milestone
+1. User Feedback
+   - Add transaction success/failure notifications
+   - Implement transaction history view
+   - Improve wallet connection error handling
+   - Add transaction progress indicators
+
+2. Mobile Experience
+   - Optimize grid for touch devices
+   - Improve responsive behavior
+   - Add mobile-specific controls
+   - Adjust layout for smaller screens
+
+3. Performance
+   - Optimize asset fetching
+   - Improve grid rendering
+   - Enhance state management
+   - Reduce initial load time
+
+Legend:
+✅ Complete
+🔄 In Progress
+⏳ Planned 
