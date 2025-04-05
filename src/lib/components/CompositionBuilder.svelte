@@ -342,6 +342,23 @@ function createMetadata() {
     };
 }
 
+// Responsive grid sizing
+$effect(() => {
+    // Responsive grid sizing based on rows and columns
+    if (rows > 5) {
+        document.documentElement.style.setProperty('--grid-max-height', `calc(100vh - 350px)`);
+    } else {
+        document.documentElement.style.setProperty('--grid-max-height', '400px');
+    }
+    
+    if (cols > 7) {
+        const availableWidth = window.innerWidth - 140; // Account for controls and margins
+        const calculatedWidth = Math.min(400, availableWidth);
+        document.documentElement.style.setProperty('--grid-max-width', `${calculatedWidth}px`);
+    } else {
+        document.documentElement.style.setProperty('--grid-max-width', '400px');
+    }
+});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -722,7 +739,7 @@ function createMetadata() {
     /* Column Controls - Grouped at Right */
     .column-controls-group {
         position: absolute;
-        right: -28px;
+        right: -40px; /* Increase distance from grid to prevent overlap */
         top: 50%;
         transform: translateY(-50%);
         display: flex;
@@ -764,7 +781,8 @@ function createMetadata() {
     /* Adjust grid container to ensure space for controls */
     .composition-grid {
         width: 100%;
-        max-width: 400px;
+        max-width: var(--grid-max-width);
+        max-height: var(--grid-max-height);
         position: relative;
         z-index: 5;
         margin: 0 auto;
@@ -985,5 +1003,19 @@ function createMetadata() {
     .control-button:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+    }
+
+    /* Add a media query to handle grid sizing when height is limited */
+    @media (max-height: 768px) {
+        .composition-grid {
+            max-width: min(400px, calc(100vh - 400px));
+            max-height: min(400px, calc(100vh - 400px));
+        }
+    }
+
+    /* Inside <style> section, add :root with CSS variables */
+    :root {
+        --grid-max-width: 400px;
+        --grid-max-height: 400px;
     }
 </style> 

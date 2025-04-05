@@ -3,7 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 // Get database connection string from environment with fallback for build time
-const connectionString = process.env.DATABASE_URL || '';
+const connectionString = process.env.POSTGRES_URL || '';
 // Only initialize neon if we have a connection string
 const sql = connectionString ? neon(connectionString) : null;
 
@@ -30,11 +30,11 @@ type Composition = {
 export const POST: RequestHandler = async ({ request }) => {
   // Return early if no connection string is available (during build)
   if (!connectionString || !sql) {
-    console.warn('DATABASE_URL environment variable is not set');
+    console.warn('POSTGRES_URL environment variable is not set');
     return json({
       success: false,
       error: 'Database connection not configured',
-      message: 'DATABASE_URL environment variable is not set'
+      message: 'POSTGRES_URL environment variable is not set'
     }, { status: 500 });
   }
 
@@ -89,11 +89,11 @@ export const POST: RequestHandler = async ({ request }) => {
 export const GET: RequestHandler = async ({ url }) => {
   // Return early if no connection string is available (during build)
   if (!connectionString || !sql) {
-    console.warn('DATABASE_URL environment variable is not set');
+    console.warn('POSTGRES_URL environment variable is not set');
     return json({
       success: false,
       error: 'Database connection not configured',
-      message: 'DATABASE_URL environment variable is not set'
+      message: 'POSTGRES_URL environment variable is not set'
     }, { status: 500 });
   }
 

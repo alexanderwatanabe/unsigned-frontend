@@ -51,11 +51,21 @@ pnpm preview # for production preview
 ```
 
 ### Environment Variables
-```
+```bash
+# Environment variables needed for the application
+POSTGRES_URL="postgres://neondb_owner:npg_GoYmh8Iknz0f@ep-delicate-shadow-a2mhoq1s-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require"
 PUBLIC_IMAGES_DOMAIN=
 PUBLIC_METADATA_URL=
 PUBLIC_NOLINERS_URL=
 ```
+
+### SvelteKit Environment Modules
+- `$env/static/private`: For server-side environment variables known at build time
+- `$env/dynamic/private`: For server-side environment variables that may change
+- `$env/static/public`: For client-side environment variables (must be prefixed with PUBLIC_)
+- `$env/dynamic/public`: For client-side environment variables that may change
+
+These modules are built into SvelteKit and don't need to be installed separately.
 
 ### Development Commands
 - `pnpm dev` - Start development server

@@ -36,3 +36,4 @@ pnpm-debug.log*
 /.idea
 *.local 
 .vercel
+.env*.local

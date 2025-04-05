@@ -1,19 +1,21 @@
 import { neon } from '@neondatabase/serverless';
 import type { PageServerLoad } from './$types';
 
+import { POSTGRES_URL } from '$env/static/private';
+
 // Get database connection string from environment with fallback for build time
-const connectionString = process.env.DATABASE_URL || '';
+const connectionString = POSTGRES_URL;
 // Only initialize neon if we have a connection string
-const sql = connectionString ? neon(connectionString) : null;
+const sql = neon(connectionString);
 
 export const load: PageServerLoad = async () => {
     // Return early if no connection string is available (during build)
     if (!connectionString || !sql) {
-        console.warn('DATABASE_URL environment variable is not set');
+        console.warn('POSTGRES_URL environment variable is not set');
         return {
             success: false,
             error: 'Database connection not configured',
-            message: 'DATABASE_URL environment variable is not set'
+            message: 'POSTGRES_URL environment variable is not set'
         };
     }
     

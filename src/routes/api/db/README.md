@@ -93,8 +93,8 @@ The `/api/db/compositions/+page.svelte` page provides a UI for testing the datab
 
 ## Environment Variables
 
-The database connection uses the `DATABASE_URL` environment variable, which should be set in the `.env` file:
+The database connection uses the `POSTGRES_URL` environment variable, which should be set in the `.env` file:
 
 ```
-DATABASE_URL="postgres://username:password@hostname/database?sslmode=require"
+POSTGRES_URL="postgres://username:password@hostname/database?sslmode=require"
 ``` 
