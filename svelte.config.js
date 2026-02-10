@@ -9,7 +9,7 @@ const config = {
 
 	kit: {
 		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter(),
+		adapter: adapter({ runtime: 'nodejs22.x' }),
 		alias: {
 			$lib: './src/lib',
 			$assets: './src/assets'

@@ -3,6 +3,7 @@
   import type { UnsigMetadata, RawUnsigMetadata } from '$lib/types';
   import { convertRawMetadata } from '$lib/types';
   import { browser } from '$app/environment';
+  import { goto } from '$app/navigation';
   import noLinersData from '$assets/noliners.json';
   import monochromesData from '$assets/monochromes.json';
   import UnsigGrid from '$lib/components/UnsigGrid.svelte';
@@ -128,6 +129,9 @@
 
   // Add state to track current view
   let currentView = $state<'all' | 'random' | 'noliners' | 'monochromes'>('all');
+
+  // Random seed for reproducible random views
+  let randomSeed = $state<number | null>(null);
 
   // Add animation state
   let activeAnimation = $state<string | null>(null);
@@ -391,18 +395,6 @@
   });
 
   // Functions
-  function getImageUrl(index: number): string {
-    const paddedIndex = index.toString().padStart(5, '0');
-    // Use different image sizes based on items per page
-    let imageSize = 128;  // default for 25+ items
-    if (itemsPerPage === 1) {
-      imageSize = 1024;  // highest quality for single item view
-    } else if (itemsPerPage <= 16) {
-      imageSize = 256;   // medium quality for 4-16 items
-    }
-    return `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/${imageSize}/${paddedIndex}.png`;
-  }
-
   function filterByIdSearch(index: number): boolean {
     if (!idSearch) return true;
     
@@ -421,6 +413,7 @@
   function loadPage(page: number) {
     if (isLoading) return;
     currentPage = page;
+    syncUrlParams();
   }
 
   function addFilter() {
@@ -460,6 +453,7 @@
       activeFilters = [...newActiveFilters];
       currentPage = 1;
       resetPageSizeFlag();
+      syncUrlParams();
     } finally {
       isApplyingFilters = false;
     }
@@ -472,6 +466,7 @@
     activeFilters = [];
     currentPage = 1;
     resetPageSizeFlag();
+    syncUrlParams();
   }
 
   function getFriendlyName(property: string): string {
@@ -480,11 +475,12 @@
 
   function updateItemsPerPage(newSize: number) {
     if (newSize === itemsPerPage) return;
-    
+
     manuallySetPageSize = true;  // Mark that size was manually set
     const currentFirstItem = (currentPage - 1) * itemsPerPage;
     currentPage = Math.floor(currentFirstItem / newSize) + 1;
     itemsPerPage = newSize;
+    // loadPage already calls syncUrlParams
     loadPage(currentPage);
   }
 
@@ -497,22 +493,18 @@
   let nextRandomIndexes = $state<number[]>([]);
 
   // Update getRandomIndexes to be more efficient
-  function getRandomIndexes(count: number, max: number): number[] {
+  function getRandomIndexes(count: number, max: number, seed?: number): number[] {
+    const rng = seed !== undefined ? mulberry32(seed) : Math.random;
     const indexes = new Set<number>();
     while (indexes.size < count) {
-      indexes.add(Math.floor(Math.random() * max));
+      indexes.add(Math.floor(rng() * max));
     }
     return Array.from(indexes);
   }
 
-  // Add function to prefetch next random batch
+  // Prefetch next random batch (indexes only, images are generated client-side)
   function prefetchNextRandomBatch() {
     nextRandomIndexes = getRandomIndexes(itemsPerPage, TOTAL_ITEMS);
-    // Prefetch the images
-    nextRandomIndexes.forEach(index => {
-      const img = new Image();
-      img.src = getImageUrl(index);
-    });
   }
   
   // Update showNoLiners to clear filters
@@ -524,36 +516,13 @@
     // Clear filters when entering no-liner mode
     activeFilters = [];
     pendingFilters = [];
+    syncUrlParams();
   }
-
-  // Add effect to handle page changes for no-liners
-  $effect(() => {
-    if (currentView === 'noliners' && !isLoading) {
-      const start = (currentPage - 1) * itemsPerPage;
-      const end = Math.min(start + itemsPerPage, noLinerIndices.length);
-      const pageIndexes = noLinerIndices.slice(start, end);
-      const dim = getImageResolution();
-
-      filteredTotalItems = noLinerIndices.length;
-      items = pageIndexes.map(index => ({
-        id: index,
-        imageUrl: '',
-        properties: allMetadata[index]?.properties || {
-          colors: [],
-          distributions: [],
-          multipliers: [],
-          rotations: []
-        }
-      }));
-
-      queueMicrotask(() => generateImages(pageIndexes, dim));
-    }
-  });
 
   // Update loadRandomItems to clear filters
   async function loadRandomItems(useNextBatch: boolean = false) {
     if (isLoading) return;
-    
+
     try {
       isLoading = true;
       currentView = 'random';
@@ -561,13 +530,17 @@
       // Clear filters when entering random mode
       activeFilters = [];
       pendingFilters = [];
-      
+
+      // Generate a new seed for this random view
+      const seed = Math.floor(Math.random() * 2147483647);
+      randomSeed = seed;
+
       // Use prefetched batch if available and requested
       let randomIndexes: number[];
       if (useNextBatch && nextRandomIndexes.length === itemsPerPage) {
         randomIndexes = nextRandomIndexes;
       } else {
-        randomIndexes = getRandomIndexes(itemsPerPage, TOTAL_ITEMS);
+        randomIndexes = getRandomIndexes(itemsPerPage, TOTAL_ITEMS, seed);
       }
 
       const dim = getImageResolution();
@@ -583,6 +556,7 @@
       }));
 
       generateImages(randomIndexes, dim);
+      syncUrlParams();
     } finally {
       isLoading = false;
     }
@@ -592,7 +566,9 @@
   function exitRandomMode() {
     currentView = 'all';
     randomMode = false;
+    randomSeed = null;
     currentPage = 1;
+    // loadPage calls syncUrlParams
     loadPage(1);
   }
 
@@ -604,43 +580,7 @@
     idSearch = value.trim();
     currentPage = 1;
     resetPageSizeFlag();
-  }
-
-  async function prefetchAdjacentPages(sourceIndexes?: number[]) {
-    if (!browser) return;
-
-    // Calculate ranges for prev and next pages
-    const prevStart = Math.max(0, (currentPage - 2) * itemsPerPage);
-    const nextEnd = Math.min(
-      sourceIndexes ? sourceIndexes.length : TOTAL_ITEMS, 
-      (currentPage + 1) * itemsPerPage
-    );
-
-    // Get indexes to prefetch
-    let indexesToPrefetch: number[];
-    if (sourceIndexes) {
-      // If we have source indexes (from search), use those
-      indexesToPrefetch = sourceIndexes.slice(prevStart, nextEnd);
-    } else {
-      // Otherwise generate sequence
-      indexesToPrefetch = Array.from(
-        { length: nextEnd - prevStart },
-        (_, i) => prevStart + i
-      );
-    }
-
-    // Filter out current page indexes
-    const currentStart = (currentPage - 1) * itemsPerPage;
-    const currentEnd = currentStart + itemsPerPage;
-    indexesToPrefetch = indexesToPrefetch.filter(i => 
-      i < currentStart || i >= currentEnd
-    );
-
-    // Prefetch images
-    indexesToPrefetch.forEach(index => {
-      const img = new Image();
-      img.src = getImageUrl(index);
-    });
+    syncUrlParams();
   }
 
   // Add drawer state
@@ -649,8 +589,124 @@
   // Add derived state for image resolution
   function getImageResolution(): number {
     if (itemsPerPage === 1) return 1024;
-    if (itemsPerPage <= 16) return 256;
+    if (itemsPerPage <= 25) return 512;
     return 128;
+  }
+
+  // Seeded PRNG (mulberry32) for reproducible random views
+  function mulberry32(seed: number): () => number {
+    let s = seed | 0;
+    return () => {
+      s = (s + 0x6D2B79F5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Serialize a filter to URL-friendly string: color.distribution.multiplier.rotation
+  function serializeFilter(f: Filter): string {
+    return [f.color, f.distribution, f.multiplier, f.rotation].join('.');
+  }
+
+  // Deserialize a filter string back to a Filter object
+  function deserializeFilter(str: string): Filter {
+    const parts = str.split('.');
+    const [color, distribution, multiplierStr, rotationStr] = parts;
+    return {
+      color: color || 'ANY',
+      distribution: distribution || 'ANY',
+      multiplier: !multiplierStr || multiplierStr === 'ANY' ? 'ANY' : (multiplierStr.includes('.') ? parseFloat(multiplierStr) : parseInt(multiplierStr, 10)),
+      rotation: !rotationStr || rotationStr === 'ANY' ? 'ANY' : parseInt(rotationStr, 10)
+    };
+  }
+
+  // Sync current gallery state to URL search params
+  function syncUrlParams() {
+    if (!browser) return;
+    const params = new URLSearchParams();
+
+    if (currentView !== 'all') params.set('view', currentView);
+    if (currentPage > 1) params.set('page', String(currentPage));
+    if (itemsPerPage !== 25) params.set('size', String(itemsPerPage));
+    if (idSearch) params.set('search', idSearch);
+    if (currentView === 'random' && randomSeed !== null) params.set('seed', String(randomSeed));
+
+    activeFilters.forEach(f => {
+      params.append('f', serializeFilter(f));
+    });
+
+    const qs = params.toString();
+    goto(`/gallery${qs ? '?' + qs : ''}`, { replaceState: true, keepFocus: true, noScroll: true });
+  }
+
+  // Initialize gallery state from URL search params
+  function initFromUrlParams() {
+    if (!browser) return;
+    const params = new URL(window.location.href).searchParams;
+
+    // Check if there are any params to parse
+    if (params.toString() === '') return;
+
+    // Parse size
+    const sizeParam = params.get('size');
+    if (sizeParam) {
+      const size = parseInt(sizeParam, 10);
+      if (PAGE_SIZES.includes(size)) {
+        itemsPerPage = size;
+        displayItemsPerPage = size;
+        manuallySetPageSize = true;
+      }
+    }
+
+    // Parse filters
+    const filterParams = params.getAll('f');
+    if (filterParams.length > 0) {
+      const filters = filterParams.slice(0, MAX_FILTERS).map(deserializeFilter);
+      pendingFilters = filters;
+      activeFilters = filters.filter(f => !Object.values(f).every(v => v === 'ANY'));
+    }
+
+    // Parse search
+    const searchParam = params.get('search');
+    if (searchParam) {
+      idSearch = searchParam;
+    }
+
+    // Parse view
+    const viewParam = params.get('view');
+    if (viewParam === 'random') {
+      const seed = params.get('seed') ? parseInt(params.get('seed')!, 10) : Math.floor(Math.random() * 2147483647);
+      randomSeed = seed;
+      randomMode = true;
+      currentView = 'random';
+      activeFilters = [];
+      pendingFilters = [];
+
+      const randomIndexes = getRandomIndexes(itemsPerPage, TOTAL_ITEMS, seed);
+      const dim = getImageResolution();
+      items = randomIndexes.map(index => ({
+        id: index,
+        imageUrl: '',
+        properties: { colors: [], distributions: [], multipliers: [], rotations: [] }
+      }));
+      queueMicrotask(() => generateImages(randomIndexes, dim));
+    } else if (viewParam === 'noliners') {
+      currentView = 'noliners';
+      filteredTotalItems = noLinerIndices.length;
+    } else if (viewParam === 'monochromes') {
+      currentView = 'monochromes';
+      filteredTotalItems = monochromeIndices.length;
+    }
+
+    // Parse page (after view so context is set)
+    const pageParam = params.get('page');
+    if (pageParam) {
+      const page = parseInt(pageParam, 10);
+      if (page > 0) {
+        currentPage = page;
+      }
+    }
   }
 
   // Update keyboard handler to include vim keys and animations
@@ -670,16 +726,18 @@
         if (!randomMode && currentPage > 1) {
           activeAnimation = 'slide-left';
           currentPage--;
+          syncUrlParams();
           setTimeout(() => activeAnimation = null, 300);
         }
         break;
-      
+
       case 'arrowright':
       case 'l':
         event.preventDefault();
         if (!randomMode && currentPage < totalPages) {
           activeAnimation = 'slide-right';
           currentPage++;
+          syncUrlParams();
           setTimeout(() => activeAnimation = null, 300);
         }
         break;
@@ -715,10 +773,12 @@
         } else {
           currentView = 'all';
           randomMode = false;
+          randomSeed = null;
           currentPage = 1;
           idSearch = '';
           activeFilters = [];
           pendingFilters = [];
+          syncUrlParams();
         }
         break;
 
@@ -753,6 +813,7 @@
     // Clear filters when entering monochrome mode
     activeFilters = [];
     pendingFilters = [];
+    syncUrlParams();
   }
 
   // Update effect to handle page changes for monochromes
@@ -781,7 +842,9 @@
   });
 
   onMount(() => {
-    loadMetadata();
+    loadMetadata().then(() => {
+      initFromUrlParams();
+    });
     // Set initial page size to 25
     itemsPerPage = 25;
     displayItemsPerPage = 25;

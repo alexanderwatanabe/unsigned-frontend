@@ -291,6 +291,38 @@
         self-taught programmer and failed writer.
       </p>
     </section>
+
+    <!-- LINKS & ARTICLES -->
+    <section>
+      <h2 class="font-serif">links & articles</h2>
+
+      <ul class="links-list">
+        <li>
+          <a href="https://unsig.info" target="_blank" rel="noopener noreferrer">unsig.info</a>
+          <span class="link-desc">community knowledge base exploring the collection — tools, guides, and analysis by patrons</span>
+        </li>
+        <li>
+          <a href="https://aethercavendish.medium.com/unsigned-algorithms-an-invitation-to-ask-better-questions-5cc4ebfecb79" target="_blank" rel="noopener noreferrer">an invitation to ask better questions</a>
+          <span class="link-desc">essay by aether cavendish on the philosophy behind the collection</span>
+        </li>
+        <li>
+          <a href="https://metachain.medium.com/the-marvelous-case-of-unsigned-algorithms-the-most-ambitious-nft-project-on-cardano-81b0cba8f108" target="_blank" rel="noopener noreferrer">the marvelous case of unsigned_algorithms</a>
+          <span class="link-desc">deep dive into the project as "the most ambitious nft project on cardano"</span>
+        </li>
+        <li>
+          <a href="https://en.cryptonomist.ch/2022/07/09/cardano-nft-column-unsigned_algorithms/" target="_blank" rel="noopener noreferrer">cardano nft: unsigned_algorithms</a>
+          <span class="link-desc">feature and interview in the cryptonomist</span>
+        </li>
+        <li>
+          <a href="https://github.com/alexanderwatanabe/unsigned_algorithms" target="_blank" rel="noopener noreferrer">source code</a>
+          <span class="link-desc">the generation code and notebooks on github</span>
+        </li>
+        <li>
+          <a href="https://twitter.com/unsigned_algo" target="_blank" rel="noopener noreferrer">@unsigned_algo</a>
+          <span class="link-desc">official account on x / twitter</span>
+        </li>
+      </ul>
+    </section>
   </article>
 </div>
 
@@ -443,6 +475,39 @@
     font-style: italic;
     line-height: 1.5 !important;
     margin-bottom: var(--space-lg) !important;
+  }
+
+  /* Links list */
+  .links-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-md) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .links-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .links-list a {
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .links-list a:hover {
+    color: var(--accent, #888);
+  }
+
+  .link-desc {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    line-height: 1.5;
   }
 
   /* Responsive */

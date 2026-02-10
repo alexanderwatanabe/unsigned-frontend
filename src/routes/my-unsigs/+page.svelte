@@ -6,16 +6,15 @@
   import Pagination from '$lib/components/Pagination.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import { goto } from '$app/navigation';
-  import { getUnsig } from '$lib/unsigs';
+  import { getUnsig, unsigs } from '$lib/unsigs';
   import { createUnsig } from '$lib/unsig/generator';
   import { unsigToImageData } from '$lib/unsig/generator';
   import { generateUnsigAsync } from '$lib/unsig/worker-api';
+  import { createWorkerPool } from '$lib/unsig/worker-pool';
   import type { OwnedUnsig, WalletAsset } from '$lib/types';
 
   const UNSIGS_POLICY_ID = '0e14267a8020229adc0184dd25fa3174c3f7d6caadcb4425c70e7c04';
   const PAGE_SIZES = [1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225, 256];
-  const PREFETCH_PAGES = 1; // Number of pages to prefetch in each direction
-  
   let loading = $state(false);
   let unsigCount = $state(0);
   let unsigIndices = $state<number[]>([]);
@@ -25,9 +24,37 @@
   let itemsPerPage = $state(25);
   let displayItemsPerPage = $state(25);
   let gridItems = $state<Array<{ id: number; imageUrl: string; hexAssetName: string }>>([]);
-  let currentResolution = $state(128);
-  let prefetchedUrls = $state(new Set<string>());
   let activeAnimation = $state<string | null>(null);
+
+  // Worker pool for client-side image generation
+  let workerPool: ReturnType<typeof createWorkerPool> | null = null;
+
+  function getWorkerPool() {
+    if (!workerPool) {
+      workerPool = createWorkerPool();
+    }
+    return workerPool;
+  }
+
+  function getImageResolution(items: number): number {
+    if (items === 1) return 1024;
+    if (items <= 25) return 512;
+    return 128;
+  }
+
+  function generateImages(pageIndexes: number[], dim: number) {
+    if (!browser) return;
+    const pool = getWorkerPool();
+    const unsigData = pageIndexes
+      .map(i => unsigs[i.toString()])
+      .filter(Boolean);
+
+    pool.generateBatch(unsigData, dim, (index, url) => {
+      gridItems = gridItems.map(item =>
+        item.id === index ? { ...item, imageUrl: url } : item
+      );
+    });
+  }
   let showCompositionBuilder = $state(false);
 
   // Download all state
@@ -44,49 +71,6 @@
 
   let gridSize = $derived(Math.sqrt(itemsPerPage));
   let totalPages = $derived(Math.ceil(unsigIndices.length / itemsPerPage));
-
-  function getImageResolution(items: number): number {
-    if (items === 1) return 1024;
-    if (items > 64) return 128;
-    return 256;
-  }
-
-  function getImageUrl(index: number, resolution: number): string {
-    const paddedIndex = index.toString().padStart(5, '0');
-    return `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/${resolution}/${paddedIndex}.png`;
-  }
-
-  function prefetchImage(url: string) {
-    if (prefetchedUrls.has(url)) return;
-    const img = new Image();
-    img.src = url;
-    prefetchedUrls.add(url);
-  }
-
-  function prefetchAdjacentPages() {
-    if (!unsigIndices.length) return;
-
-    // Calculate range of pages to prefetch
-    const startPage = Math.max(1, currentPage - PREFETCH_PAGES);
-    const endPage = Math.min(totalPages, currentPage + PREFETCH_PAGES);
-
-    // Get all indices that need prefetching
-    const indicesToPrefetch = new Set<number>();
-    for (let page = startPage; page <= endPage; page++) {
-      if (page === currentPage) continue; // Skip current page as it's already loaded
-      const start = (page - 1) * itemsPerPage;
-      const end = Math.min(start + itemsPerPage, unsigIndices.length);
-      for (let i = start; i < end; i++) {
-        indicesToPrefetch.add(unsigIndices[i]);
-      }
-    }
-
-    // Prefetch images
-    indicesToPrefetch.forEach(index => {
-      const url = getImageUrl(index, currentResolution);
-      prefetchImage(url);
-    });
-  }
 
   function findClosestPageSize(size: number): number {
     return PAGE_SIZES.reduce((prev, curr) => 
@@ -151,15 +135,10 @@
       window.addEventListener('keydown', handleKeydown);
       return () => {
         window.removeEventListener('keydown', handleKeydown);
+        workerPool?.destroy();
+        workerPool = null;
       };
     }
-  });
-
-  $effect(() => {
-    // Update resolution based on items per page
-    currentResolution = getImageResolution(itemsPerPage);
-    // Clear prefetched URLs when resolution changes
-    prefetchedUrls = new Set();
   });
 
   $effect(() => {
@@ -179,9 +158,6 @@
             
           // Keep the unsigIndices array for compatibility
           unsigIndices = ownedUnsigs.map(unsig => unsig.id);
-          
-          // Clear prefetched URLs when assets change
-          prefetchedUrls = new Set();
         })
         .catch((err: Error) => {
           console.error('Failed to fetch assets:', err);
@@ -202,19 +178,20 @@
   });
 
   $effect(() => {
-    // Update current items when page, indices, or resolution changes
+    // Update current items when page or indices change
     const start = (currentPage - 1) * itemsPerPage;
     const end = Math.min(start + itemsPerPage, ownedUnsigs.length);
-    gridItems = ownedUnsigs.slice(start, end).map(unsig => ({
+    const pageUnsigs = ownedUnsigs.slice(start, end);
+    const pageIndexes = pageUnsigs.map(u => u.id);
+    const dim = getImageResolution(itemsPerPage);
+
+    gridItems = pageUnsigs.map(unsig => ({
       id: unsig.id,
-      imageUrl: getImageUrl(unsig.id, currentResolution),
+      imageUrl: '',
       hexAssetName: unsig.hexAssetName
     }));
 
-    // Prefetch adjacent pages after current page is set
-    if (browser) {
-      prefetchAdjacentPages();
-    }
+    queueMicrotask(() => generateImages(pageIndexes, dim));
   });
 
   function extractAssetInfo(unit: string): OwnedUnsig | null {
@@ -248,8 +225,6 @@
   function handleItemsPerPageChange(size: number) {
     itemsPerPage = size;
     displayItemsPerPage = size;
-    // Clear prefetched URLs when grid size changes
-    prefetchedUrls = new Set();
     // Adjust current page if necessary
     const newTotalPages = Math.ceil(unsigIndices.length / size);
     if (currentPage > newTotalPages) {
@@ -363,7 +338,7 @@
         items={gridItems}
         {loading}
         {gridSize}
-        imageResolution={currentResolution}
+        imageResolution={getImageResolution(itemsPerPage)}
       />
     </div>
 
