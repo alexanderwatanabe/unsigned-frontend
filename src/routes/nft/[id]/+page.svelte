@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { unsigs, getUnsig } from '$lib/unsigs';
   import { generateUnsig, unsigToImageData, createUnsig } from '$lib/unsig/generator';
+  import { generateUnsigAsync } from '$lib/unsig/worker-api';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import Modal from '$lib/components/Modal.svelte';
@@ -35,6 +36,7 @@
   let generationProgress = $state(0);
   let pendingDownloadSize = $state(0);
   let downloadError = $state('');
+  let downloadAbort: AbortController | null = $state(null);
   let cursorX = $state(0);
   let cursorY = $state(0);
   let showCursorLight = $state(false);
@@ -320,8 +322,8 @@
     showDownloadModal = true;
     generationProgress = 0;
 
-    // Yield to browser so the modal paints before heavy computation
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const abort = new AbortController();
+    downloadAbort = abort;
 
     try {
       const tempCanvas = document.createElement('canvas');
@@ -343,10 +345,12 @@
       if (currentUnsig.index === 0) {
         generationProgress = 100;
       } else {
-        const { imageData } = generateUnsig(formattedUnsig, size);
+        const { imageData } = await generateUnsigAsync(formattedUnsig, size, {
+          onProgress(percent) { generationProgress = percent; },
+          signal: abort.signal,
+        });
         const fullData = unsigToImageData(imageData, size);
         ctx.putImageData(fullData, 0, 0);
-        generationProgress = 100;
       }
 
       const link = document.createElement('a');
@@ -358,10 +362,16 @@
       link.click();
       URL.revokeObjectURL(link.href);
       showDownloadModal = false;
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        showDownloadModal = false;
+        return;
+      }
       console.error('Error generating high-res image:', error);
       downloadError = 'failed to generate image. try a smaller size or refresh the page.';
       downloadModalState = 'error';
+    } finally {
+      downloadAbort = null;
     }
   }
 </script>
@@ -487,6 +497,9 @@
         <div class="progress-fill" style="width: {generationProgress}%"></div>
       </div>
       <p class="modal-progress-label">{generationProgress}%</p>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick={() => { downloadAbort?.abort(); }}>cancel</button>
+      </div>
     {:else}
       <p class="modal-text">{downloadError}</p>
       <div class="modal-actions">

@@ -7,7 +7,9 @@
   import Modal from '$lib/components/Modal.svelte';
   import { goto } from '$app/navigation';
   import { getUnsig } from '$lib/unsigs';
-  import { generateUnsig, unsigToImageData, createUnsig } from '$lib/unsig/generator';
+  import { createUnsig } from '$lib/unsig/generator';
+  import { unsigToImageData } from '$lib/unsig/generator';
+  import { generateUnsigAsync } from '$lib/unsig/worker-api';
   import type { OwnedUnsig, WalletAsset } from '$lib/types';
 
   const UNSIGS_POLICY_ID = '0e14267a8020229adc0184dd25fa3174c3f7d6caadcb4425c70e7c04';
@@ -35,6 +37,7 @@
   let downloadAllTotal = $state(0);
   let downloadAllCurrentId = $state('');
   let downloadAllCancelled = $state(false);
+  let downloadAllAbort: AbortController | null = $state(null);
   let downloadAllError = $state('');
   let downloadAllState = $state<'generating' | 'done' | 'error'>('generating');
 
@@ -265,19 +268,21 @@
     downloadAllState = 'generating';
     showDownloadModal = true;
 
+    const abort = new AbortController();
+    downloadAllAbort = abort;
+
     const tempCanvas = document.createElement('canvas');
     const ctx = tempCanvas.getContext('2d');
     if (!ctx) return;
 
     try {
       for (let i = 0; i < ownedUnsigs.length; i++) {
-        if (downloadAllCancelled) break;
+        if (downloadAllCancelled || abort.signal.aborted) break;
 
         const unsig = ownedUnsigs[i];
         const paddedId = unsig.id.toString().padStart(5, '0');
         downloadAllCurrent = i + 1;
         downloadAllCurrentId = paddedId;
-        downloadAllProgress = Math.round((i / ownedUnsigs.length) * 100);
 
         const unsigData = getUnsig(unsig.id.toString());
         if (!unsigData) continue;
@@ -295,9 +300,16 @@
             rotations: unsigData.properties.rotations.map(Number)
           });
 
-          const { imageData } = generateUnsig(formattedUnsig, size);
+          const { imageData } = await generateUnsigAsync(formattedUnsig, size, {
+            onProgress(percent) {
+              downloadAllProgress = Math.round(((i + percent / 100) / ownedUnsigs.length) * 100);
+            },
+            signal: abort.signal,
+          });
           const fullData = unsigToImageData(imageData, size);
           ctx.putImageData(fullData, 0, 0);
+        } else {
+          downloadAllProgress = Math.round(((i + 1) / ownedUnsigs.length) * 100);
         }
 
         const blob = await new Promise<Blob>(resolve => {
@@ -313,14 +325,20 @@
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      if (!downloadAllCancelled) {
+      if (!downloadAllCancelled && !abort.signal.aborted) {
         downloadAllProgress = 100;
         downloadAllState = 'done';
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        showDownloadModal = false;
+        return;
+      }
       console.error('Error during batch download:', err);
       downloadAllError = `failed on unsig #${downloadAllCurrentId}. ${downloadAllCurrent - 1} of ${downloadAllTotal} downloaded.`;
       downloadAllState = 'error';
+    } finally {
+      downloadAllAbort = null;
     }
   }
 </script>
@@ -380,7 +398,7 @@
       </div>
       <p class="modal-progress-label">{downloadAllProgress}%</p>
       <div class="modal-actions">
-        <button class="modal-btn" onclick={() => { downloadAllCancelled = true; showDownloadModal = false; }}>cancel</button>
+        <button class="modal-btn" onclick={() => { downloadAllCancelled = true; downloadAllAbort?.abort(); showDownloadModal = false; }}>cancel</button>
       </div>
     {:else if downloadAllState === 'done'}
       <p class="modal-text">{downloadAllTotal} unsigs downloaded at 4,096px</p>
