@@ -4,7 +4,10 @@
   import { onMount } from 'svelte';
   import UnsigGrid from '$lib/components/UnsigGrid.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
+  import Modal from '$lib/components/Modal.svelte';
   import { goto } from '$app/navigation';
+  import { getUnsig } from '$lib/unsigs';
+  import { generateUnsig, unsigToImageData, createUnsig } from '$lib/unsig/generator';
   import type { OwnedUnsig, WalletAsset } from '$lib/types';
 
   const UNSIGS_POLICY_ID = '0e14267a8020229adc0184dd25fa3174c3f7d6caadcb4425c70e7c04';
@@ -24,6 +27,16 @@
   let prefetchedUrls = $state(new Set<string>());
   let activeAnimation = $state<string | null>(null);
   let showCompositionBuilder = $state(false);
+
+  // Download all state
+  let showDownloadModal = $state(false);
+  let downloadAllProgress = $state(0);
+  let downloadAllCurrent = $state(0);
+  let downloadAllTotal = $state(0);
+  let downloadAllCurrentId = $state('');
+  let downloadAllCancelled = $state(false);
+  let downloadAllError = $state('');
+  let downloadAllState = $state<'generating' | 'done' | 'error'>('generating');
 
   let gridSize = $derived(Math.sqrt(itemsPerPage));
   let totalPages = $derived(Math.ceil(unsigIndices.length / itemsPerPage));
@@ -239,19 +252,86 @@
       currentPage = newTotalPages;
     }
   }
+
+  async function downloadAll() {
+    if (!ownedUnsigs.length) return;
+
+    const size = 4096;
+    downloadAllTotal = ownedUnsigs.length;
+    downloadAllCurrent = 0;
+    downloadAllProgress = 0;
+    downloadAllCancelled = false;
+    downloadAllError = '';
+    downloadAllState = 'generating';
+    showDownloadModal = true;
+
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    if (!ctx) return;
+
+    try {
+      for (let i = 0; i < ownedUnsigs.length; i++) {
+        if (downloadAllCancelled) break;
+
+        const unsig = ownedUnsigs[i];
+        const paddedId = unsig.id.toString().padStart(5, '0');
+        downloadAllCurrent = i + 1;
+        downloadAllCurrentId = paddedId;
+        downloadAllProgress = Math.round((i / ownedUnsigs.length) * 100);
+
+        const unsigData = getUnsig(unsig.id.toString());
+        if (!unsigData) continue;
+
+        tempCanvas.width = size;
+        tempCanvas.height = size;
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, size, size);
+
+        if (unsigData.index !== 0) {
+          const formattedUnsig = createUnsig(Number(unsigData.index), {
+            multipliers: unsigData.properties.multipliers.map(Number),
+            colors: unsigData.properties.colors,
+            distributions: unsigData.properties.distributions,
+            rotations: unsigData.properties.rotations.map(Number)
+          });
+
+          const { imageData } = generateUnsig(formattedUnsig, size);
+          const fullData = unsigToImageData(imageData, size);
+          ctx.putImageData(fullData, 0, 0);
+        }
+
+        const blob = await new Promise<Blob>(resolve => {
+          tempCanvas.toBlob(blob => { if (blob) resolve(blob); }, 'image/png');
+        });
+        const link = document.createElement('a');
+        link.download = `unsig_${paddedId}_${size}px.png`;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        // Brief pause between downloads to avoid browser throttling
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      if (!downloadAllCancelled) {
+        downloadAllProgress = 100;
+        downloadAllState = 'done';
+      }
+    } catch (err) {
+      console.error('Error during batch download:', err);
+      downloadAllError = `failed on unsig #${downloadAllCurrentId}. ${downloadAllCurrent - 1} of ${downloadAllTotal} downloaded.`;
+      downloadAllState = 'error';
+    }
+  }
 </script>
 
-<svelte:head>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-</svelte:head>
-
-<div class="container mx-auto px-4 py-8">
+<div class="my-unsigs-page">
   {#if !browser || !BrowserWalletState.connected}
-    <div class="text-gray-600">please connect your wallet to view your unsigs</div>
+    <div class="empty-message">please connect your wallet to view your unsigs</div>
   {:else if error}
-    <div class="text-red-500">{error}</div>
+    <div class="error-message">{error}</div>
   {:else if unsigCount === 0 && !loading}
-    <div class="text-gray-600">no unsigs found in your wallet</div>
+    <div class="empty-message">no unsigs found in your wallet</div>
   {:else}
     <div class="grid-container" class:animate-left={activeAnimation === 'slide-left'} 
           class:animate-right={activeAnimation === 'slide-right'}
@@ -273,17 +353,71 @@
       onPageChange={handlePageChange}
       onItemsPerPageChange={handleItemsPerPageChange}
     />
+
+    <div class="download-all-container">
+      <button class="download-all-btn" onclick={downloadAll}>
+        download all ({unsigCount})
+      </button>
+    </div>
   {/if}
 </div>
 
+<Modal bind:showModal={showDownloadModal}>
+  {#snippet header()}
+    {#if downloadAllState === 'generating'}
+      <h3 class="modal-title font-serif">downloading collection</h3>
+    {:else if downloadAllState === 'done'}
+      <h3 class="modal-title font-serif">download complete</h3>
+    {:else}
+      <h3 class="modal-title font-serif">error</h3>
+    {/if}
+  {/snippet}
+  {#snippet content()}
+    {#if downloadAllState === 'generating'}
+      <p class="modal-text">rendering unsig #{downloadAllCurrentId} ({downloadAllCurrent} of {downloadAllTotal})</p>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: {downloadAllProgress}%"></div>
+      </div>
+      <p class="modal-progress-label">{downloadAllProgress}%</p>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick={() => { downloadAllCancelled = true; showDownloadModal = false; }}>cancel</button>
+      </div>
+    {:else if downloadAllState === 'done'}
+      <p class="modal-text">{downloadAllTotal} unsigs downloaded at 4,096px</p>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick={() => { showDownloadModal = false; }}>close</button>
+      </div>
+    {:else}
+      <p class="modal-text">{downloadAllError}</p>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick={() => { showDownloadModal = false; }}>close</button>
+      </div>
+    {/if}
+  {/snippet}
+</Modal>
+
 <style>
-  :global(*) {
-    font-family: 'JetBrains Mono', monospace;
+  .my-unsigs-page {
+    min-height: 100vh;
+    background: var(--bg-void);
+    padding: var(--space-lg);
+  }
+
+  .empty-message {
+    color: var(--text-secondary);
+    padding: var(--space-xl) 0;
+    text-align: center;
+  }
+
+  .error-message {
+    color: #ef4444;
+    padding: var(--space-md) 0;
+    text-align: center;
   }
 
   .grid-container {
     width: 100%;
-    max-width: min(90vw, calc(90vh * 1)); /* Square aspect ratio, limited by viewport */
+    max-width: min(90vw, calc(90vh * 1));
     aspect-ratio: 1;
     display: flex;
     justify-content: center;
@@ -293,7 +427,6 @@
     overflow: hidden;
   }
 
-  /* Ensure grid container maintains square ratio on smaller screens */
   @media (max-width: 768px) {
     .grid-container {
       max-width: 95vw;
@@ -301,7 +434,6 @@
     }
   }
 
-  /* Navigation animations */
   .animate-left {
     animation: slideLeft 0.3s ease-in-out;
   }
@@ -340,5 +472,84 @@
     0% { transform: scale(1); opacity: 1; }
     15% { transform: scale(1.01); opacity: 0.95; }
     100% { transform: scale(1); opacity: 1; }
+  }
+
+  .download-all-container {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--space-md);
+  }
+
+  .download-all-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-default);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: var(--text-sm);
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .download-all-btn:hover {
+    color: var(--accent);
+    border-color: var(--border-focus);
+  }
+
+  .modal-title {
+    font-size: var(--text-lg);
+    font-weight: 400;
+    color: var(--text-primary);
+  }
+
+  .modal-text {
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    line-height: 1.6;
+    margin-bottom: var(--space-md);
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+    margin-top: var(--space-md);
+  }
+
+  .modal-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-default);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: var(--text-sm);
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .modal-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-focus);
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--bg-raised);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease-out;
+  }
+
+  .modal-progress-label {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: var(--text-xs);
+    margin-top: var(--space-sm);
   }
 </style> 

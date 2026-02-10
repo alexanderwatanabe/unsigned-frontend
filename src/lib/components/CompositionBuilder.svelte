@@ -565,15 +565,15 @@ $effect(() => {
             </div>
             
             <!-- Grid Display -->
-            <div class="composition-grid border border-gray-100 p-1 rounded-sm bg-white shadow-sm" class:preview-grid={previewMode}>
-                <div 
+            <div class="composition-grid" class:preview-grid={previewMode}>
+                <div
                     class="grid gap-0.5"
                     class:preview-cells={previewMode}
                     style="grid-template-rows: repeat({rows}, 1fr); grid-template-columns: repeat({cols}, 1fr);">
                     {#each grid as row, rowIndex}
                         {#each row as cell, colIndex}
-                            <div 
-                                class="grid-cell border border-gray-200 hover:border-black transition-colors relative group cursor-pointer bg-gray-100"
+                            <div
+                                class="grid-cell"
                                 class:preview-cell={previewMode}
                                 ondragover={onDragOver}
                                 ondrop={(e) => onDrop(e, rowIndex, colIndex)}
@@ -627,25 +627,25 @@ $effect(() => {
 
     <!-- Unsigs Carousel - Only visible when not in preview mode -->
     {#if !previewMode}
-        <div class="unsigs-carousel border-t border-gray-200 bg-white">
-            <div class="carousel-header flex items-center justify-between px-4 py-2">
-                <h3 class="font-mono lowercase text-lg">my unsigs ({ownedUnsigs.length})</h3>
+        <div class="unsigs-carousel">
+            <div class="carousel-header">
+                <h3>my unsigs ({ownedUnsigs.length})</h3>
             </div>
 
             {#if loading}
-                <div class="flex justify-center p-4">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-black"></div>
+                <div class="carousel-loading">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
                 </div>
             {:else if error}
-                <div class="text-red-500 p-2">{error}</div>
+                <div class="carousel-error">{error}</div>
             {:else if ownedUnsigs.length === 0}
-                <div class="text-gray-500 p-2">no unsigs found</div>
+                <div class="carousel-empty">no unsigs found</div>
             {:else}
-                <div class="carousel-container px-4 py-2">
+                <div class="carousel-container">
                     <div class="carousel-track">
                         {#each ownedUnsigs as unsig}
-                            <div 
-                                class="carousel-item border hover:border-black transition-colors cursor-grab relative group"
+                            <div
+                                class="carousel-item"
                                 draggable="true"
                                 ondragstart={() => startDrag(unsig.id, unsig.hexAssetName)}
                                 role="button"
@@ -655,8 +655,8 @@ $effect(() => {
                                     alt="unsig {unsig.id}"
                                     class="w-full h-full object-cover"
                                 />
-                                <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center">
-                                    <span class="text-white opacity-0 group-hover:opacity-100 transition-opacity font-mono text-sm">
+                                <div class="carousel-item-overlay">
+                                    <span class="carousel-item-label">
                                         #{unsig.id}
                                     </span>
                                 </div>
@@ -674,9 +674,11 @@ $effect(() => {
         min-height: 100vh;
         display: flex;
         flex-direction: column;
-        padding-bottom: 260px; /* Add padding to prevent content from being hidden behind the fixed footer */
+        padding-bottom: 260px;
+        background: var(--bg-void);
+        color: var(--text-primary);
     }
-    
+
     .grid-workspace {
         display: flex;
         justify-content: center;
@@ -684,100 +686,57 @@ $effect(() => {
         margin: 2rem 0;
         position: relative;
     }
-    
-    /* Shared button styling */
-    .grid-control-button {
-        width: 32px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #333;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 18px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-    
-    .grid-control-button:hover {
-        background-color: #444;
-    }
-    
-    .grid-control-button:disabled {
-        background-color: #999;
-        cursor: not-allowed;
-    }
-    
+
     /* Row Controls - Grouped vertically */
     .row-controls-group {
         position: absolute;
-        bottom: -50px;  /* Increase distance from grid bottom */
+        bottom: -50px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
         flex-direction: column;
         align-items: center;
-        background-color: white;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-default);
         padding: 6px 2px;
         border-radius: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         z-index: 10;
     }
-    
+
     .button-separator-vertical {
         transform: rotate(90deg);
         margin: 4px 0;
-        color: #ccc;
+        color: var(--text-dim);
         font-size: 14px;
         line-height: 1;
     }
-    
+
     /* Column Controls - Grouped at Right */
     .column-controls-group {
         position: absolute;
-        right: -40px; /* Increase distance from grid to prevent overlap */
+        right: -40px;
         top: 50%;
         transform: translateY(-50%);
         display: flex;
         align-items: center;
-        background-color: white;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-default);
         padding: 2px 6px;
         border-radius: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         z-index: 10;
     }
-    
-    /* Bottom Controls for reset and close */
-    .bottom-controls {
-        position: absolute;
-        bottom: -100px;  /* Increase distance to accommodate row controls */
-        left: 50%; 
-        transform: translateX(-50%);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        background-color: white;
-        padding: 2px 6px;
-        border-radius: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        z-index: 10;
-    }
-    
+
     /* Preview button container below bottom controls */
     .preview-button-container {
         position: absolute;
-        bottom: -150px;  /* Position below the bottom controls */
-        left: 50%; 
+        bottom: -150px;
+        left: 50%;
         transform: translateX(-50%);
         display: flex;
         justify-content: center;
         z-index: 10;
     }
-    
+
     /* Adjust grid container to ensure space for controls */
     .composition-grid {
         width: 100%;
@@ -787,20 +746,29 @@ $effect(() => {
         z-index: 5;
         margin: 0 auto;
         aspect-ratio: 1/1;
-        margin-bottom: 120px;  /* Increase margin to make room for preview button */
+        margin-bottom: 120px;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-default);
+        padding: 2px;
+        border-radius: 2px;
     }
-    
+
     .grid-cell {
         transition: all 0.2s ease;
         aspect-ratio: 1/1;
         position: relative;
-        border-width: 1px;
-        background-color: #f3f4f6; /* Light gray background */
+        border: 1px solid var(--border-default);
+        background-color: var(--bg-raised);
         display: flex;
         flex-direction: column;
         align-items: center;
+        cursor: pointer;
     }
-    
+
+    .grid-cell:hover {
+        border-color: var(--accent);
+    }
+
     /* Cell controls styling */
     .cell-controls {
         display: flex;
@@ -811,19 +779,19 @@ $effect(() => {
         bottom: -14px;
         left: 50%;
         transform: translateX(-50%);
-        background-color: white;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-default);
         padding: 0 4px;
         border-radius: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         z-index: 20;
     }
-    
+
     .button-separator {
-        color: #ccc;
+        color: var(--text-dim);
         font-size: 14px;
         line-height: 1;
     }
-    
+
     /* Force grid cells to be square */
     .grid-cell::before {
         content: "";
@@ -831,7 +799,7 @@ $effect(() => {
         padding-bottom: 100%;
         position: absolute;
     }
-    
+
     .grid-cell > div:first-child {
         position: absolute;
         top: 0;
@@ -846,142 +814,172 @@ $effect(() => {
         height: 100%;
         object-fit: cover;
     }
-    
+
     .unsigs-carousel {
         min-height: 200px;
         max-height: 260px;
         position: fixed;
         bottom: 0;
-        left: 0;
-        width: 100%;
+        left: 48px;
+        right: 0;
         z-index: 40;
-        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        background-color: var(--bg-surface);
+        border-top: 1px solid var(--border-default);
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
     }
-    
+
     .carousel-header {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.5rem 1rem;
+        border-bottom: 1px solid var(--border-subtle);
     }
-    
+
+    .carousel-header h3 {
+        font-family: 'JetBrains Mono', monospace;
+        text-transform: lowercase;
+        font-size: var(--text-base);
+        color: var(--text-primary);
+        font-weight: 400;
+    }
+
+    .carousel-loading {
+        display: flex;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .carousel-error {
+        color: #ef4444;
+        padding: 0.5rem 1rem;
+    }
+
+    .carousel-empty {
+        color: var(--text-secondary);
+        padding: 0.5rem 1rem;
+    }
+
     .carousel-container {
         width: 100%;
         overflow-x: auto;
-        padding: 8px 0;
+        padding: 0.5rem 1rem;
         height: 100%;
     }
-    
+
     .carousel-track {
         display: flex;
         gap: 12px;
         padding-bottom: 8px;
     }
-    
+
     .carousel-item {
         flex: 0 0 auto;
         width: 100px;
         height: 100px;
         aspect-ratio: 1;
+        border: 1px solid var(--border-default);
+        cursor: grab;
+        position: relative;
+        overflow: hidden;
+        transition: border-color 0.2s ease;
     }
-    
+
+    .carousel-item:hover {
+        border-color: var(--accent);
+    }
+
+    .carousel-item-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s ease;
+    }
+
+    .carousel-item:hover .carousel-item-overlay {
+        background: rgba(0, 0, 0, 0.5);
+    }
+
+    .carousel-item-label {
+        color: white;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: var(--text-sm);
+    }
+
+    .carousel-item:hover .carousel-item-label {
+        opacity: 1;
+    }
+
     /* Preview mode styles */
     .preview-mode {
         margin: 0 auto;
     }
-    
+
     .preview-grid {
         border: none !important;
         padding: 0 !important;
         box-shadow: none !important;
         background: transparent !important;
     }
-    
+
     .preview-cells {
         gap: 0 !important;
     }
-    
+
     .preview-cell {
         border: none !important;
         background-color: transparent !important;
     }
-    
+
     /* Button group for preview and transaction */
     .button-group {
         display: flex;
         gap: 1rem;
         justify-content: center;
     }
-    
+
     /* Preview button styling */
     .preview-button {
-        background-color: black;
-        color: white;
-        border: none;
+        background-color: transparent;
+        color: var(--text-primary);
+        border: 1px solid var(--border-default);
         padding: 0.75rem 1.5rem;
         border-radius: 4px;
-        font-weight: 500;
-        transition: background-color 0.2s ease;
+        font-weight: 400;
+        transition: all 0.2s ease;
         font-family: 'JetBrains Mono', monospace;
         text-transform: lowercase;
     }
-    
+
     .preview-button:hover {
-        background-color: #333333;
+        border-color: var(--accent);
+        background-color: var(--accent-dim);
     }
-    
+
     /* Transaction button styling */
     .transaction-button {
-        background-color: #333333;
-        color: white;
-        border: none;
+        background-color: transparent;
+        color: var(--text-primary);
+        border: 1px solid var(--border-default);
         padding: 0.75rem 1.5rem;
         border-radius: 4px;
-        font-weight: 500;
-        transition: background-color 0.2s ease;
+        font-weight: 400;
+        transition: all 0.2s ease;
         font-family: 'JetBrains Mono', monospace;
         text-transform: lowercase;
     }
-    
+
     .transaction-button:hover {
-        background-color: #111111;
-    }
-    
-    .shortcut {
-        position: relative;
-        display: inline-block;
-        font-weight: 500;
-        text-decoration: underline;
-        text-decoration-style: dotted;
-        text-underline-offset: 3px;
-        text-decoration-thickness: 1px;
-        animation: rainbow-pulse 6s infinite;
-        color: inherit;
+        border-color: var(--accent);
+        background-color: var(--accent-dim);
     }
 
-    @keyframes rainbow-pulse {
-        0%, 45%, 100% {
-            background: none;
-            color: inherit;
-        }
-        50%, 95% {
-            background: linear-gradient(
-                to right,
-                #ff3d3d,    /* Bright red */
-                #ff9f1a,    /* Bright orange */
-                #ffff00,    /* Bright yellow */
-                #4dff4d,    /* Bright green */
-                #00ffff,    /* Bright cyan */
-                #4d4dff,    /* Bright blue */
-                #ff1aff,    /* Bright magenta */
-                #ff3d3d     /* Back to bright red */
-            );
-            background-size: 200% 200%;
-            background-clip: text;
-            -webkit-background-clip: text;
-            color: transparent;
-            text-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
-        }
-    }
-
-    /* Shared button control style - no outlines */
+    /* Shared button control style */
     .control-button {
         width: 28px;
         height: 28px;
@@ -991,21 +989,20 @@ $effect(() => {
         background-color: transparent;
         border: none;
         font-size: 16px;
-        color: #374151;
+        color: var(--text-secondary);
         cursor: pointer;
         transition: all 0.2s ease;
     }
-    
+
     .control-button:hover:not(:disabled) {
-        color: #111827;
+        color: var(--text-primary);
     }
-    
+
     .control-button:disabled {
-        opacity: 0.5;
+        opacity: 0.3;
         cursor: not-allowed;
     }
 
-    /* Add a media query to handle grid sizing when height is limited */
     @media (max-height: 768px) {
         .composition-grid {
             max-width: min(400px, calc(100vh - 400px));
@@ -1013,7 +1010,12 @@ $effect(() => {
         }
     }
 
-    /* Inside <style> section, add :root with CSS variables */
+    @media (max-width: 768px) {
+        .unsigs-carousel {
+            left: 0;
+        }
+    }
+
     :root {
         --grid-max-width: 400px;
         --grid-max-height: 400px;

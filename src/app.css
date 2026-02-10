@@ -1,52 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --primary-color: #1a1a1a;
-  --background-color: #ffffff;
-  --text-color: #333333;
-  --border-color: #e0e0e0;
+  /* Backgrounds */
+  --bg-void: #0a0a0a;
+  --bg-surface: #111111;
+  --bg-raised: #1a1a1a;
+  --bg-overlay: #222222;
+
+  /* Text */
+  --text-primary: #e8e8e8;
+  --text-secondary: #888888;
+  --text-dim: #555555;
+
+  /* Borders */
+  --border-subtle: #1f1f1f;
+  --border-default: #2a2a2a;
+  --border-focus: #3a3a3a;
+
+  /* Accent */
+  --accent: #ffffff;
+  --accent-dim: rgba(255, 255, 255, 0.12);
+
+  /* Typography scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 2rem;
+  --text-2xl: 3.5rem;
+
+  /* Spacing scale */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 2rem;
+  --space-xl: 4rem;
+  --space-2xl: 8rem;
 }
 
 body {
   font-family: 'JetBrains Mono', monospace;
   margin: 0;
   padding: 0;
-  background-color: var(--background-color);
-  color: var(--text-color);
+  background-color: var(--bg-void);
+  color: var(--text-primary);
 }
 
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+/* Utility: Instrument Serif */
+.font-serif {
+  font-family: 'Instrument Serif', serif;
 }
 
-nav {
-  padding: 1rem 2rem;
-  border-bottom: 1px solid var(--border-color);
+/* Shortcut rainbow animation — shared global class */
+.shortcut {
+  position: relative;
+  display: inline-block;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  animation: rainbow-pulse 6s infinite;
+  color: inherit;
 }
 
-nav a {
-  color: var(--text-color);
-  text-decoration: none;
-  margin-right: 2rem;
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 2rem;
-  padding: 2rem 0;
+@keyframes rainbow-pulse {
+  0%, 45%, 100% {
+    background: none;
+    color: inherit;
+  }
+  50%, 95% {
+    background: linear-gradient(
+      var(--gradient-angle, 0deg),
+      #ff3d3d,
+      #ff9f1a,
+      #ffff00,
+      #4dff4d,
+      #00ffff,
+      #4d4dff,
+      #ff1aff,
+      #ff3d3d
+    );
+    background-size: 200% 200%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 2px rgba(255, 255, 255, 0.2);
+  }
 }
 
-.pagination {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  margin: 2rem 0;
+@keyframes gradient-rotate {
+  0% { --gradient-angle: 0deg; }
+  100% { --gradient-angle: 360deg; }
 }
-
-.filters {
-  display: flex;
-  gap: 1rem;
-  margin: 2rem 0;
-  flex-wrap: wrap;
-} 

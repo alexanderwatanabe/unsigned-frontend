@@ -11,8 +11,8 @@
 
 <div class="pagination-controls">
   <div class="pagination">
-    <button 
-      disabled={currentPage === 1} 
+    <button
+      disabled={currentPage === 1}
       onclick={() => {
         if (currentPage > 1) {
           onPageChange(currentPage - 1);
@@ -36,8 +36,8 @@
       }}
     />
     <span>of {totalPages}</span>
-    <button 
-      disabled={currentPage === totalPages} 
+    <button
+      disabled={currentPage === totalPages}
       onclick={() => {
         if (currentPage < totalPages) {
           onPageChange(currentPage + 1);
@@ -50,7 +50,7 @@
 
   <div class="items-per-page">
     <span>items per page: {displayItemsPerPage}</span>
-    <input 
+    <input
       type="range"
       min="0"
       max={PAGE_SIZES.length - 1}
@@ -80,17 +80,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-    margin: 0.75rem auto;
+    gap: var(--space-sm);
+    margin: var(--space-md) auto;
     width: 100%;
     max-width: 800px;
+    padding: var(--space-sm);
   }
 
   .pagination {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: var(--space-sm);
   }
 
   .pagination button {
@@ -102,13 +103,20 @@
     padding: 0;
     font-size: 1.25rem;
     border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: white;
+    border: 1px solid var(--border-default);
+    background: var(--bg-raised);
+    color: var(--text-primary);
     cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .pagination button:hover:not(:disabled) {
+    background: var(--bg-overlay);
+    border-color: var(--border-focus);
   }
 
   .pagination button:disabled {
-    opacity: 0.5;
+    opacity: 0.3;
     cursor: not-allowed;
   }
 
@@ -116,22 +124,33 @@
     display: flex;
     align-items: center;
     height: 32px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
   }
 
   .pagination input[type="number"] {
     height: 32px;
     width: 70px;
     text-align: center;
-    padding: 0 0.5rem;
-    border: 1px solid var(--border-color);
+    padding: 0 var(--space-sm);
+    border: 1px solid var(--border-default);
     border-radius: 4px;
+    background: var(--bg-raised);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: var(--text-sm);
+  }
+
+  .pagination input[type="number"]:focus {
+    outline: none;
+    border-color: var(--border-focus);
   }
 
   .items-per-page {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
+    gap: var(--space-xs);
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
@@ -139,11 +158,12 @@
 
   .items-per-page input[type="range"] {
     width: 100px;
+    accent-color: var(--accent);
   }
 
   .items-per-page span {
-    font-size: 0.875rem;
-    color: #666;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
   }
 
   input[type="number"]::-webkit-inner-spin-button,
@@ -151,8 +171,8 @@
     -webkit-appearance: none;
     margin: 0;
   }
-  
+
   input[type="number"] {
     -moz-appearance: textfield;
   }
-</style> 
+</style>

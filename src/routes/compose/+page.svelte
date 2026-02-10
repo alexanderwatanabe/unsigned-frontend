@@ -22,7 +22,7 @@
 
 <style>
   .composition-page {
-    height: calc(100vh - 64px);
-    margin-top: -16px;
+    height: 100vh;
+    background: var(--bg-void);
   }
 </style> 

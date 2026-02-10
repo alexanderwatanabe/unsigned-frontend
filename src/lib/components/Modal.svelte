@@ -18,19 +18,16 @@ function handleEscape(e: KeyboardEvent) {
 }
 </script>
 
-<svelte:window on:keydown={handleEscape}/>
+<svelte:window onkeydown={handleEscape}/>
 
 {#if showModal}
-    <!-- Overlay -->
     <div class="modal-overlay">
-        <!-- Modal Container -->
-        <div 
+        <div
             class="modal-container"
             onclick={handleBackdropClick}
             role="dialog"
             aria-modal="true">
-            <!-- Modal Content -->
-            <div 
+            <div
                 class="modal-content"
                 onclick={(e) => e.stopPropagation()}>
                 <div class="mb-4">
@@ -51,11 +48,12 @@ function handleEscape(e: KeyboardEvent) {
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.7);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 9999;
+        backdrop-filter: blur(4px);
     }
 
     .modal-container {
@@ -70,7 +68,8 @@ function handleEscape(e: KeyboardEvent) {
     }
 
     .modal-content {
-        background: white;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-default);
         border-radius: 0.5rem;
         width: 100%;
         max-width: 42rem;
@@ -79,5 +78,6 @@ function handleEscape(e: KeyboardEvent) {
         padding: 1.5rem;
         position: relative;
         margin: 1rem;
+        color: var(--text-primary);
     }
-</style> 
+</style>

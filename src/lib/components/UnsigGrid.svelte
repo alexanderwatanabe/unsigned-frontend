@@ -1,5 +1,7 @@
 <script lang="ts">
-  // Define the policy ID constant in this component as well
+  import { onMount } from 'svelte';
+  import { browser } from '$app/environment';
+
   const UNSIGS_POLICY_ID = '0e14267a8020229adc0184dd25fa3174c3f7d6caadcb4425c70e7c04';
 
   interface UnsigItem {
@@ -12,14 +14,50 @@
   export let loading = false;
   export let gridSize = 5;
   export let imageResolution = 256;
-  
-  // Computed function to get full asset ID when needed
+
+  let gridEl: HTMLElement;
+
   function getFullAssetId(hexAssetName: string): string {
     return `${UNSIGS_POLICY_ID}${hexAssetName}`;
   }
+
+  // IntersectionObserver for staggered fade-in
+  onMount(() => {
+    if (!browser || !gridEl) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            (entry.target as HTMLElement).classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    function observeItems() {
+      gridEl?.querySelectorAll('.grid-item').forEach((item, i) => {
+        (item as HTMLElement).style.animationDelay = `${i * 30}ms`;
+        observer.observe(item);
+      });
+    }
+
+    observeItems();
+
+    // Re-observe when items change
+    const mutObserver = new MutationObserver(observeItems);
+    mutObserver.observe(gridEl, { childList: true });
+
+    return () => {
+      observer.disconnect();
+      mutObserver.disconnect();
+    };
+  });
 </script>
 
-<div class="grid" style="--grid-size: {gridSize}" data-resolution={imageResolution}>
+<div class="grid" style="--grid-size: {gridSize}" data-resolution={imageResolution} bind:this={gridEl}>
   {#if loading}
     <div class="loading-overlay">
       <div class="loading-dialog">
@@ -27,12 +65,12 @@
       </div>
     </div>
   {/if}
-  
+
   {#if items.length > 0}
     {#each items as item}
-      <a 
-        href="/nft/{item.id}" 
-        class="grid-item" 
+      <a
+        href="/nft/{item.id}"
+        class="grid-item"
         data-hex-asset-name={item.hexAssetName}
         data-full-asset-id={item.hexAssetName ? getFullAssetId(item.hexAssetName) : undefined}
       >
@@ -54,26 +92,11 @@
     position: relative;
     display: grid;
     grid-template-columns: repeat(var(--grid-size), 1fr);
-    gap: 0.5rem;
-    width: 70vh;
-    height: 70vh;
-    margin: 0 auto;
-    min-height: 200px;
-    min-width: 200px;
+    gap: 1px;
+    width: 100%;
     max-width: 100%;
-  }
-
-  /* Scale grid items based on resolution */
-  .grid[data-resolution="1024"] {
-    --item-base-size: calc(70vh / var(--grid-size));
-  }
-
-  .grid[data-resolution="256"] {
-    --item-base-size: calc(70vh / var(--grid-size));
-  }
-
-  .grid[data-resolution="128"] {
-    --item-base-size: calc(70vh / var(--grid-size));
+    background: var(--bg-void);
+    min-height: 200px;
   }
 
   .grid-item {
@@ -82,13 +105,22 @@
     overflow: hidden;
     width: 100%;
     height: 100%;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out, box-shadow 0.2s ease;
+  }
+
+  .grid-item.visible,
+  .grid-item:global(.visible) {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .grid-item img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transition: transform 0.3s ease;
+    display: block;
   }
 
   .overlay {
@@ -97,26 +129,27 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.2s ease;
   }
 
   .index {
-    color: white;
-    font-size: 1rem;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
     font-weight: 500;
+  }
+
+  .grid-item:hover {
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+    z-index: 1;
   }
 
   .grid-item:hover .overlay {
     opacity: 1;
-  }
-
-  .grid-item:hover img {
-    transform: scale(1.05);
   }
 
   .loading-overlay {
@@ -125,16 +158,18 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.8);
+    background: rgba(10, 10, 10, 0.8);
     backdrop-filter: blur(2px);
+    z-index: 10;
   }
 
   .loading-dialog {
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    font-size: 1rem;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: var(--space-md) var(--space-lg);
+    border-radius: 4px;
+    font-size: var(--text-sm);
+    border: 1px solid var(--border-default);
   }
 
   .empty-state {
@@ -142,15 +177,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 2rem;
-    color: #666;
+    padding: var(--space-lg);
+    color: var(--text-dim);
   }
 
   @media (max-width: 768px) {
     .grid {
       width: 100%;
-      height: auto;
-      aspect-ratio: 1;
     }
   }
-</style> 
+</style>

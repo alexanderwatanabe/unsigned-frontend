@@ -101,7 +101,7 @@
   }
 </script>
 
-<div class="container mx-auto px-4 py-8">
+<div class="arrangements-page">
   
   {#if loading}
     <div class="flex justify-center py-12">
@@ -202,20 +202,23 @@
 </div>
 
 <style>
-  /* Masonry grid layout */
+  .arrangements-page {
+    min-height: 100vh;
+    background: var(--bg-void);
+    padding: var(--space-lg);
+  }
+
   .masonry-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 24px;
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
   }
-  
+
   .composition-card {
-    background-color: #f5f5f5;
-    border: 1px solid #d0d0d0;
-    border-radius: 2px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 4px;
     padding: 12px;
     display: flex;
     flex-direction: column;
@@ -223,62 +226,52 @@
     width: 100%;
     break-inside: avoid;
   }
-  
+
   .composition-grid {
     display: grid;
     gap: 0;
     width: auto;
     margin: 0 auto;
-    background-color: white;
-    border: 1px solid #d0d0d0;
+    background-color: var(--bg-void);
+    border: 1px solid var(--border-subtle);
     overflow: hidden;
   }
-  
+
   .grid-cell {
     width: 128px;
     height: 128px;
-    background-color: #f3f4f6;
+    background-color: var(--bg-raised);
     position: relative;
   }
-  
+
   .grid-cell .group {
     width: 100%;
     height: 100%;
     cursor: pointer;
   }
-  
+
   .grid-cell a {
     text-decoration: none;
   }
-  
+
   .empty-cell {
     width: 100%;
     height: 100%;
-    background-color: #f3f4f6;
+    background-color: var(--bg-raised);
   }
-  
-  .unsig-ids-grid {
-    display: none; /* Hide instead of removing in case it's referenced elsewhere */
-  }
-  
-  .unsig-id {
-    display: none; /* Hide instead of removing in case it's referenced elsewhere */
-  }
-  
+
   .creation-time {
     margin-top: 12px;
-    font-size: 14px;
-    color: #000;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
     text-align: center;
-    font-family: monospace;
   }
-  
+
   .transaction-id {
-    font-size: 14px;
-    color: #000;
-    font-family: monospace;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
   }
-  
+
   .transaction-id-container {
     margin-top: 4px;
     display: flex;
@@ -286,50 +279,49 @@
     justify-content: center;
     gap: 6px;
   }
-  
+
   .copy-button {
     background: none;
     border: none;
     padding: 2px;
     cursor: pointer;
-    color: #333;
+    color: var(--text-dim);
     border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  
+
   .copy-button:hover {
-    color: #000;
-    background-color: rgba(0, 0, 0, 0.05);
+    color: var(--text-primary);
+    background-color: var(--accent-dim);
   }
-  
-  /* Responsive adjustments */
+
   @media (max-width: 768px) {
     .masonry-grid {
       grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     }
-    
+
     .grid-cell {
       width: 96px;
       height: 96px;
     }
-    
+
     .composition-grid {
       grid-template-rows: repeat(var(--rows), 96px) !important;
       grid-template-columns: repeat(var(--cols), 96px) !important;
     }
-    
+
     .grid-cell .group {
       width: 100%;
       height: 100%;
     }
-    
+
     .grid-cell a {
-      font-size: 10px; /* Smaller font on mobile */
+      font-size: 10px;
     }
   }
-  
+
   @media (max-width: 480px) {
     .masonry-grid {
       grid-template-columns: 1fr;
