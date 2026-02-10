@@ -7,7 +7,8 @@
   import monochromesData from '$assets/monochromes.json';
   import UnsigGrid from '$lib/components/UnsigGrid.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
-  import { getUnsigMetadata } from '$lib/unsigs';
+  import { getUnsigMetadata, unsigs } from '$lib/unsigs';
+  import { createWorkerPool } from '$lib/unsig/worker-pool';
   
   // Constants - declare these first
   const TOTAL_ITEMS = 31119;
@@ -130,6 +131,30 @@
 
   // Add animation state
   let activeAnimation = $state<string | null>(null);
+
+  // Worker pool for client-side image generation
+  let workerPool: ReturnType<typeof createWorkerPool> | null = null;
+
+  function getWorkerPool() {
+    if (!workerPool) {
+      workerPool = createWorkerPool();
+    }
+    return workerPool;
+  }
+
+  function generateImages(pageIndexes: number[], dim: number) {
+    if (!browser) return;
+    const pool = getWorkerPool();
+    const unsigData = pageIndexes
+      .map(i => unsigs[i.toString()])
+      .filter(Boolean);
+
+    pool.generateBatch(unsigData, dim, (index, url) => {
+      items = items.map(item =>
+        item.id === index ? { ...item, imageUrl: url } : item
+      );
+    });
+  }
 
   // Update loadMetadata to use imported no-liners data
   async function loadMetadata() {
@@ -343,10 +368,11 @@
       const end = Math.min(start + itemsPerPage, filteredIndexes.length);
       const pageIndexes = filteredIndexes.slice(start, end);
       
-      // Update items
+      // Update items with empty imageUrl (shows black), then generate
+      const dim = getImageResolution();
       items = pageIndexes.map(index => ({
         id: index,
-        imageUrl: getImageUrl(index),
+        imageUrl: '',
         properties: allMetadata[index]?.properties || {
           colors: [],
           distributions: [],
@@ -355,8 +381,8 @@
         }
       }));
 
-      // Prefetch adjacent pages
-      prefetchAdjacentPages(filteredIndexes);
+      // Use queueMicrotask to run generation outside the $effect tracking scope
+      queueMicrotask(() => generateImages(pageIndexes, dim));
     } catch (error) {
       console.error('Error in filter effect:', error);
     } finally {
@@ -506,11 +532,12 @@
       const start = (currentPage - 1) * itemsPerPage;
       const end = Math.min(start + itemsPerPage, noLinerIndices.length);
       const pageIndexes = noLinerIndices.slice(start, end);
-      
+      const dim = getImageResolution();
+
       filteredTotalItems = noLinerIndices.length;
       items = pageIndexes.map(index => ({
         id: index,
-        imageUrl: getImageUrl(index),
+        imageUrl: '',
         properties: allMetadata[index]?.properties || {
           colors: [],
           distributions: [],
@@ -519,8 +546,7 @@
         }
       }));
 
-      // Prefetch adjacent pages
-      prefetchAdjacentPages(noLinerIndices);
+      queueMicrotask(() => generateImages(pageIndexes, dim));
     }
   });
 
@@ -544,9 +570,10 @@
         randomIndexes = getRandomIndexes(itemsPerPage, TOTAL_ITEMS);
       }
 
+      const dim = getImageResolution();
       items = randomIndexes.map(index => ({
         id: index,
-        imageUrl: getImageUrl(index),
+        imageUrl: '',
         properties: {
           colors: [],
           distributions: [],
@@ -555,8 +582,7 @@
         }
       }));
 
-      // Prefetch next batch
-      prefetchNextRandomBatch();
+      generateImages(randomIndexes, dim);
     } finally {
       isLoading = false;
     }
@@ -736,11 +762,12 @@
       const start = (currentPage - 1) * itemsPerPage;
       const end = Math.min(start + itemsPerPage, indices.length);
       const pageIndexes = indices.slice(start, end);
-      
+      const dim = getImageResolution();
+
       filteredTotalItems = indices.length;
       items = pageIndexes.map(index => ({
         id: index,
-        imageUrl: getImageUrl(index),
+        imageUrl: '',
         properties: allMetadata[index]?.properties || {
           colors: [],
           distributions: [],
@@ -749,8 +776,7 @@
         }
       }));
 
-      // Prefetch adjacent pages
-      prefetchAdjacentPages(indices);
+      queueMicrotask(() => generateImages(pageIndexes, dim));
     }
   });
 
@@ -761,11 +787,11 @@
     displayItemsPerPage = 25;
     // Add keyboard event listener
     window.addEventListener('keydown', handleKeydown);
-    // Prefetch first random batch
-    prefetchNextRandomBatch();
 
     return () => {
       window.removeEventListener('keydown', handleKeydown);
+      workerPool?.destroy();
+      workerPool = null;
     };
   });
 </script>

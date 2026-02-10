@@ -67,14 +67,16 @@
   {/if}
 
   {#if items.length > 0}
-    {#each items as item}
+    {#each items as item (item.id)}
       <a
         href="/nft/{item.id}"
         class="grid-item"
         data-hex-asset-name={item.hexAssetName}
         data-full-asset-id={item.hexAssetName ? getFullAssetId(item.hexAssetName) : undefined}
       >
-        <img src={item.imageUrl} alt={`unsig #${item.id}`} loading="lazy" />
+        {#if item.imageUrl}
+          <img src={item.imageUrl} alt={`unsig #${item.id}`} />
+        {/if}
         <div class="overlay">
           <span class="index">#{item.id.toString().padStart(5, '0')}</span>
         </div>
@@ -105,6 +107,7 @@
     overflow: hidden;
     width: 100%;
     height: 100%;
+    background: black;
     opacity: 0;
     transform: translateY(8px);
     transition: opacity 0.3s ease-out, transform 0.3s ease-out, box-shadow 0.2s ease;
@@ -121,6 +124,12 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    animation: imgFadeIn 0.25s ease-out;
+  }
+
+  @keyframes imgFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .overlay {
