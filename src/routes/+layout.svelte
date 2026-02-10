@@ -13,7 +13,6 @@
   const { data, children } = $props<{data: LayoutData; children: Snippet}>();
   let currentPath = $state($page.url.pathname);
   let unsigCount = $state(0);
-  let walletExpanded = $state(false);
   let hoveredNav = $state<string | null>(null);
 
   $effect(() => {
@@ -51,16 +50,6 @@
     return currentPath.startsWith(path);
   }
 
-  function toggleWalletPanel() {
-    walletExpanded = !walletExpanded;
-  }
-
-  // Close wallet panel after connecting
-  $effect(() => {
-    if (browser && BrowserWalletState.connected) {
-      walletExpanded = false;
-    }
-  });
 </script>
 
 <div class="app-shell">
@@ -108,28 +97,18 @@
         </a>
       {/each}
 
-      <button
-        class="wallet-dot"
-        onclick={toggleWalletPanel}
+      <div
+        class="wallet-inline"
         onmouseenter={() => hoveredNav = 'wallet'}
         onmouseleave={() => hoveredNav = null}
-        aria-label="wallet"
       >
-        <span class="dot" class:connected={browser && BrowserWalletState.connected}></span>
-        {#if hoveredNav === 'wallet'}
-          <span class="nav-tooltip">wallet</span>
+        <CardanoWallet
+          label={BrowserWalletState.connected ? 'wallet' : 'cw'}
+        />
+        {#if hoveredNav === 'wallet' && !(browser && BrowserWalletState.connected)}
+          <span class="nav-tooltip">connect wallet</span>
         {/if}
-      </button>
-
-      {#if walletExpanded}
-        <div class="wallet-panel">
-          <div class="wallet-panel-content">
-            <CardanoWallet
-              label={BrowserWalletState.connected ? 'wallet' : 'connect'}
-            />
-          </div>
-        </div>
-      {/if}
+      </div>
     </div>
   </nav>
 
@@ -143,30 +122,12 @@
         <span class="tab-label">{item.abbr}</span>
       </a>
     {/each}
-    <button class="tab-item" onclick={toggleWalletPanel} aria-label="wallet">
-      <span class="dot-mobile" class:connected={browser && BrowserWalletState.connected}></span>
-    </button>
-  </nav>
-
-  {#if walletExpanded}
-    <!-- Mobile wallet overlay -->
-    <div class="wallet-overlay-mobile">
-      <div class="wallet-overlay-content">
-        <button class="wallet-close" onclick={() => walletExpanded = false}>x</button>
-        {#if browser && BrowserWalletState.connected}
-          <div class="wallet-links">
-            <a href="/compose" onclick={() => walletExpanded = false}>compose</a>
-            <a href="/my-unsigs" onclick={() => walletExpanded = false}>{unsigCount} unsigs</a>
-          </div>
-        {/if}
-        <div class="wallet-connect-mobile">
-          <CardanoWallet
-            label={BrowserWalletState.connected ? 'wallet' : 'connect'}
-          />
-        </div>
-      </div>
+    <div class="wallet-inline-mobile">
+      <CardanoWallet
+        label={BrowserWalletState.connected ? 'wallet' : 'cw'}
+      />
     </div>
-  {/if}
+  </nav>
 
   <main class="main-content">
     {@render children()}
@@ -284,62 +245,34 @@
     position: relative;
   }
 
-  .wallet-dot {
+  .wallet-inline {
     position: relative;
     width: 48px;
     height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
   }
 
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-dim);
-    transition: background 0.3s;
-  }
-
-  .dot.connected {
-    background: #4ade80;
-  }
-
-  .wallet-panel {
-    position: absolute;
-    bottom: 48px;
-    left: 52px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-default);
-    border-radius: 8px;
-    padding: var(--space-md);
-    z-index: 200;
-    min-width: 200px;
-  }
-
-  .wallet-panel-content :global(.mesh-wallet-button) {
-    background: var(--bg-raised) !important;
+  /* All mesh buttons in the rail: strip SDK styling */
+  .wallet-inline :global(.mesh-inline-flex) {
+    background: none !important;
     color: var(--text-primary) !important;
-    border: 1px solid var(--border-default) !important;
-    border-radius: 6px !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     font-family: 'JetBrains Mono', monospace !important;
-    font-size: var(--text-sm) !important;
+    font-size: var(--text-xs) !important;
     min-width: auto !important;
     min-height: auto !important;
-    padding: 8px 16px !important;
-    transition: background 0.15s !important;
+    height: auto !important;
+    padding: 4px !important;
+    cursor: pointer !important;
   }
 
-  .wallet-panel-content :global(.mesh-wallet-button:hover) {
-    background: var(--bg-overlay) !important;
-  }
-
-  .wallet-panel-content :global(.mesh-wallet-button span) {
-    color: var(--text-primary) !important;
+  .wallet-inline :global(.mesh-inline-flex:hover) {
+    color: var(--accent) !important;
+    background: none !important;
   }
 
   /* ── Main Content ── */
@@ -351,10 +284,6 @@
 
   /* ── Bottom Bar (Mobile) ── */
   .bottom-bar {
-    display: none;
-  }
-
-  .wallet-overlay-mobile {
     display: none;
   }
 
@@ -383,6 +312,7 @@
     }
 
     .tab-item {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -411,82 +341,30 @@
       pointer-events: none;
     }
 
-    .dot-mobile {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-dim);
-      transition: background 0.3s;
-    }
-
-    .dot-mobile.connected {
-      background: #4ade80;
-    }
-
-    .wallet-overlay-mobile {
-      display: block;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.8);
-      z-index: 200;
-    }
-
-    .wallet-overlay-content {
-      position: absolute;
-      bottom: 56px;
-      left: 0;
-      right: 0;
-      background: var(--bg-surface);
-      border-top: 1px solid var(--border-default);
-      padding: var(--space-lg);
+    .wallet-inline-mobile {
       display: flex;
-      flex-direction: column;
-      gap: var(--space-md);
+      align-items: center;
+      justify-content: center;
+      height: 48px;
     }
 
-    .wallet-close {
-      position: absolute;
-      top: var(--space-md);
-      right: var(--space-md);
-      background: none;
-      border: none;
-      color: var(--text-secondary);
-      font-size: var(--text-base);
-      cursor: pointer;
-    }
-
-    .wallet-links {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-
-    .wallet-links a {
-      color: var(--text-primary);
-      text-decoration: none;
-      padding: var(--space-sm) 0;
-      font-size: var(--text-sm);
-    }
-
-    .wallet-links a:hover {
-      color: var(--accent);
-    }
-
-    .wallet-connect-mobile :global(.mesh-wallet-button) {
-      background: var(--bg-raised) !important;
+    .wallet-inline-mobile :global(.mesh-inline-flex) {
+      background: none !important;
       color: var(--text-primary) !important;
-      border: 1px solid var(--border-default) !important;
-      border-radius: 6px !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
       font-family: 'JetBrains Mono', monospace !important;
-      font-size: var(--text-sm) !important;
+      font-size: var(--text-xs) !important;
       min-width: auto !important;
       min-height: auto !important;
-      padding: 8px 16px !important;
-      width: 100% !important;
+      height: auto !important;
+      padding: 4px 8px !important;
     }
 
-    .wallet-connect-mobile :global(.mesh-wallet-button span) {
-      color: var(--text-primary) !important;
+    .wallet-inline-mobile :global(.mesh-inline-flex:hover) {
+      color: var(--accent) !important;
+      background: none !important;
     }
   }
 
@@ -501,26 +379,28 @@
     font-size: 1.125rem;
   }
 
-  /* Hide ADA balance, show wallet icon only */
-  .wallet-panel-content :global(button.mesh-inline-flex) {
+  /* Connected state: hide ADA balance text, show wallet icon only */
+  .wallet-inline :global(.mesh-inline-flex:has(img)) {
     font-size: 0 !important;
-    padding: 0.25rem 0.5rem !important;
   }
-  .wallet-panel-content :global(button.mesh-inline-flex img) {
-    margin: 0.25rem !important;
+  .wallet-inline :global(.mesh-inline-flex img) {
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important;
   }
-  .wallet-panel-content :global(button.mesh-inline-flex span) {
+  .wallet-inline :global(.mesh-inline-flex span) {
     display: none !important;
   }
 
-  .wallet-connect-mobile :global(button.mesh-inline-flex) {
+  .wallet-inline-mobile :global(.mesh-inline-flex:has(img)) {
     font-size: 0 !important;
-    padding: 0.25rem 0.5rem !important;
   }
-  .wallet-connect-mobile :global(button.mesh-inline-flex img) {
-    margin: 0.25rem !important;
+  .wallet-inline-mobile :global(.mesh-inline-flex img) {
+    width: 20px !important;
+    height: 20px !important;
+    margin: 0 !important;
   }
-  .wallet-connect-mobile :global(button.mesh-inline-flex span) {
+  .wallet-inline-mobile :global(.mesh-inline-flex span) {
     display: none !important;
   }
 </style>
