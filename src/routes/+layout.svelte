@@ -54,6 +54,13 @@
   function toggleWalletPanel() {
     walletExpanded = !walletExpanded;
   }
+
+  // Close wallet panel after connecting
+  $effect(() => {
+    if (browser && BrowserWalletState.connected) {
+      walletExpanded = false;
+    }
+  });
 </script>
 
 <div class="app-shell">
@@ -481,5 +488,39 @@
     .wallet-connect-mobile :global(.mesh-wallet-button span) {
       color: var(--text-primary) !important;
     }
+  }
+
+  /* ── Mesh SDK overrides ── */
+
+  /* Replace "Create API key" dialog title with "connect wallet" */
+  :global(.mesh-text-lg.mesh-font-semibold.mesh-tracking-tight) {
+    font-size: 0 !important;
+  }
+  :global(.mesh-text-lg.mesh-font-semibold.mesh-tracking-tight)::after {
+    content: 'connect wallet';
+    font-size: 1.125rem;
+  }
+
+  /* Hide ADA balance, show wallet icon only */
+  .wallet-panel-content :global(button.mesh-inline-flex) {
+    font-size: 0 !important;
+    padding: 0.25rem 0.5rem !important;
+  }
+  .wallet-panel-content :global(button.mesh-inline-flex img) {
+    margin: 0.25rem !important;
+  }
+  .wallet-panel-content :global(button.mesh-inline-flex span) {
+    display: none !important;
+  }
+
+  .wallet-connect-mobile :global(button.mesh-inline-flex) {
+    font-size: 0 !important;
+    padding: 0.25rem 0.5rem !important;
+  }
+  .wallet-connect-mobile :global(button.mesh-inline-flex img) {
+    margin: 0.25rem !important;
+  }
+  .wallet-connect-mobile :global(button.mesh-inline-flex span) {
+    display: none !important;
   }
 </style>

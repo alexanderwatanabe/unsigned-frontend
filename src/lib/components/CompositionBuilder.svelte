@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { UnsigMetadata, OwnedUnsig } from '$lib/types';
 import { BrowserWalletState } from '@meshsdk/svelte';
+import Modal from '$lib/components/Modal.svelte';
 
 // At the top of the script, add console log to verify imports
 console.log('CompositionBuilder: BrowserWalletState imported:', typeof BrowserWalletState);
@@ -34,6 +35,10 @@ let error = $state<string | null>(null);
 let draggingUnsig = $state<number | null>(null);
 let draggingUnsigHex = $state<string | null>(null);
 let previewMode = $state(false);
+let showTxModal = $state(false);
+let txResult = $state<{ hash: string } | null>(null);
+let txError = $state<string | null>(null);
+let buildingTx = $state(false);
 
 // Initialize grid
 $effect(() => {
@@ -342,220 +347,28 @@ function createMetadata() {
     };
 }
 
-// Responsive grid sizing
-$effect(() => {
-    // Responsive grid sizing based on rows and columns
-    if (rows > 5) {
-        document.documentElement.style.setProperty('--grid-max-height', `calc(100vh - 350px)`);
-    } else {
-        document.documentElement.style.setProperty('--grid-max-height', '400px');
-    }
-    
-    if (cols > 7) {
-        const availableWidth = window.innerWidth - 140; // Account for controls and margins
-        const calculatedWidth = Math.min(400, availableWidth);
-        document.documentElement.style.setProperty('--grid-max-width', `${calculatedWidth}px`);
-    } else {
-        document.documentElement.style.setProperty('--grid-max-width', '400px');
-    }
-});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="composition-builder h-full flex flex-col">
     <!-- Main Content Area - Grid Workspace -->
-    <div class="flex-1 flex flex-col items-center justify-center p-6">
+    <div class="flex-1 flex flex-col items-center p-6">
         <div class="grid-workspace" class:preview-mode={previewMode}>
-            <!-- Row Controls - Vertically stacked at bottom -->
-            <div class="row-controls">
-                <!-- Row Controls (vertically stacked) -->
-                <div class="row-controls-group">
-                    <button 
-                        class="control-button"
-                        onclick={removeRow}
-                        disabled={rows <= 1}
-                        aria-label="remove row">
-                        -
-                    </button>
-                    
-                    <div class="button-separator-vertical">|</div>
-                    
-                    <button 
-                        class="control-button"
-                        onclick={addRow}
-                        aria-label="add row">
-                        +
-                    </button>
-                </div>
-                
-                <!-- Preview button moved below the bottom controls -->
-                <div class="preview-button-container">
-                    <div class="button-group">
-                        <button 
-                            class="preview-button" 
-                            onclick={togglePreview}
-                            aria-label="toggle preview">
-                            <span class="shortcut">p</span>review
-                        </button>
-                        
-                        {#if mode === 'owned'}
-                            <button 
-                                class="transaction-button"
-                                onclick={async () => {
-                                    console.log('Transaction button clicked');
-                                    
-                                    try {
-                                        // Get wallet instance
-                                        if (!BrowserWalletState.connected || !BrowserWalletState.wallet) {
-                                            alert('Wallet not connected!');
-                                            return;
-                                        }
-                                        
-                                        const wallet = BrowserWalletState.wallet;
-                                        
-                                        // Show building status
-                                        const button = document.activeElement;
-                                        if (button instanceof HTMLButtonElement) {
-                                            button.disabled = true;
-                                            button.textContent = 'building transaction...';
-                                        }
-                                        
-                                        // Dump complete grid state for debugging
-                                        console.log('Current Grid State:');
-                                        grid.forEach((row, i) => {
-                                            console.log(`Row ${i}:`, row);
-                                        });
-                                        
-                                        // Get the assets data - this is what we'll send
-                                        const arrangementData = getArrangementData();
-                                        console.log('Arrangement data for transaction:', arrangementData);
-                                        
-                                        if (arrangementData.length === 0) {
-                                            alert('No assets to send!');
-                                            return;
-                                        }
-                                        
-                                        // Format assets for transaction
-                                        const assets = arrangementData.map(item => ({
-                                            unit: `${UNSIGS_POLICY_ID}${item.hexAssetName}`,
-                                            quantity: '1'
-                                        }));
-                                        
-                                        console.log('Assets to send:', assets);
-                                        
-                                        // Get destination address (user's own address)
-                                        const addresses = await wallet.getUsedAddresses();
-                                        const changeAddress = await wallet.getChangeAddress();
-                                        
-                                        // Create metadata - must match exactly what's being sent
-                                        const metadata = createMetadata();
-                                        console.log('Transaction metadata:', metadata);
-                                        
-                                        // Verify that assets and metadata match
-                                        console.log('Verification - asset count:', assets.length, 'metadata positions count:', metadata[674].arrangement.positions.length);
-                                        if (assets.length !== metadata[674].arrangement.positions.length) {
-                                            console.error('Mismatch between assets and metadata position count!');
-                                        }
-                                        
-                                        // Build transaction
-                                        console.log('Building transaction...');
-                                        // @ts-ignore - Mesh SDK import
-                                        const { Transaction } = await import('@meshsdk/core');
-                                        
-                                        // Create transaction builder
-                                        const tx = new Transaction({ initiator: wallet });
-                                        
-                                        // Add outputs (assets to send)
-                                        tx.sendAssets(changeAddress, assets);
-                                        
-                                        // Set metadata
-                                        tx.setMetadata(674, metadata[674]);
-                                        
-                                        // Build, sign, and submit
-                                        console.log('Building unsigned transaction...');
-                                        const unsignedTx = await tx.build();
-                                        
-                                        console.log('Signing transaction...');
-                                        const signedTx = await wallet.signTx(unsignedTx);
-                                        
-                                        console.log('Submitting transaction...');
-                                        const txHash = await wallet.submitTx(signedTx);
-                                        
-                                        console.log('Transaction submitted successfully!');
-                                        console.log('Transaction hash:', txHash);
-                                        
-                                        // Save composition to database
-                                        try {
-                                            console.log('Saving composition to database...');
-                                            // Format positions data for API - convert from arrangementData
-                                            const positionsData = arrangementData.map(item => ({
-                                                unsigIndex: item.unsigId, 
-                                                row: item.row,
-                                                column: item.col
-                                            }));
-                                            
-                                            // Call the API to store composition data
-                                            const response = await fetch('/api/db/compositions', {
-                                                method: 'POST',
-                                                headers: {
-                                                    'Content-Type': 'application/json'
-                                                },
-                                                body: JSON.stringify({
-                                                    transactionId: txHash,
-                                                    positions: positionsData
-                                                })
-                                            });
-                                            
-                                            const result = await response.json();
-                                            
-                                            if (result.success) {
-                                                console.log('Composition saved to database successfully!', result);
-                                            } else {
-                                                console.error('Failed to save composition to database:', result.error);
-                                            }
-                                        } catch (dbErr) {
-                                            // Log database error but don't show to user since tx was successful
-                                            console.error('Error saving composition to database:', dbErr);
-                                        }
-                                        
-                                        alert(`Transaction submitted successfully!\nTransaction hash: ${txHash}`);
-                                        
-                                    } catch (err) {
-                                        console.error('Transaction error:', err);
-                                        alert(`Transaction failed: ${err instanceof Error ? err.message : String(err)}`);
-                                    } finally {
-                                        // Reset button state
-                                        const button = document.activeElement;
-                                        if (button instanceof HTMLButtonElement) {
-                                            button.disabled = false;
-                                            button.textContent = 'build transaction';
-                                        }
-                                    }
-                                }}
-                                aria-label="build transaction">
-                                build transaction
-                            </button>
-                        {/if}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Column Controls - All on right side -->
+            <!-- Column Controls - on right side -->
             <div class="column-controls">
-                <!-- Right Column Controls (grouped) -->
                 <div class="column-controls-group">
-                    <button 
+                    <button
                         class="control-button"
                         onclick={removeColumn}
                         disabled={cols <= 1}
                         aria-label="remove column">
                         -
                     </button>
-                    
+
                     <div class="button-separator mx-4">|</div>
-                    
-                    <button 
+
+                    <button
                         class="control-button"
                         onclick={addColumn}
                         aria-label="add column">
@@ -563,7 +376,7 @@ $effect(() => {
                     </button>
                 </div>
             </div>
-            
+
             <!-- Grid Display -->
             <div class="composition-grid" class:preview-grid={previewMode}>
                 <div
@@ -582,7 +395,7 @@ $effect(() => {
                                 <!-- Grid Cell Content -->
                                 {#if cell.unsigId !== null}
                                     <div class="w-full h-full relative" style="transform: rotate({cell.rotation}deg);">
-                                        <img 
+                                        <img
                                             src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/128/{cell.unsigId.toString().padStart(5, '0')}.png"
                                             alt="unsig {cell.unsigId}"
                                             class="w-full h-full object-cover"
@@ -593,11 +406,11 @@ $effect(() => {
                                         <!-- Empty cell - no text -->
                                     </div>
                                 {/if}
-                                
+
                                 <!-- Cell Controls - Positioned below cell (only visible when not in preview) -->
                                 {#if cell.unsigId !== null && !previewMode}
                                     <div class="cell-controls opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button 
+                                        <button
                                             class="control-button"
                                             onclick={() => rotateCell(rowIndex, colIndex)}
                                             aria-label="rotate">
@@ -606,10 +419,10 @@ $effect(() => {
                                                 <path d="M3 3v5h5"></path>
                                             </svg>
                                         </button>
-                                        
+
                                         <div class="button-separator mx-2">|</div>
-                                        
-                                        <button 
+
+                                        <button
                                             class="control-button"
                                             onclick={() => clearCell(rowIndex, colIndex)}
                                             aria-label="clear">
@@ -621,6 +434,169 @@ $effect(() => {
                         {/each}
                     {/each}
                 </div>
+            </div>
+        </div>
+
+        <!-- Below-grid controls in normal flow -->
+        <div class="grid-bottom-controls">
+            <div class="row-controls-group">
+                <button
+                    class="control-button"
+                    onclick={removeRow}
+                    disabled={rows <= 1}
+                    aria-label="remove row">
+                    -
+                </button>
+
+                <div class="button-separator-vertical">|</div>
+
+                <button
+                    class="control-button"
+                    onclick={addRow}
+                    aria-label="add row">
+                    +
+                </button>
+            </div>
+
+            <div class="button-group">
+                <button
+                    class="preview-button"
+                    onclick={togglePreview}
+                    aria-label="toggle preview">
+                    <span class="shortcut">p</span>review
+                </button>
+
+                {#if mode === 'owned'}
+                    <button
+                        class="transaction-button"
+                        disabled={buildingTx}
+                        onclick={async () => {
+                            console.log('Transaction button clicked');
+                            txResult = null;
+                            txError = null;
+
+                            try {
+                                // Get wallet instance
+                                if (!BrowserWalletState.connected || !BrowserWalletState.wallet) {
+                                    txError = 'wallet not connected';
+                                    showTxModal = true;
+                                    return;
+                                }
+
+                                const wallet = BrowserWalletState.wallet;
+                                buildingTx = true;
+
+                                // Dump complete grid state for debugging
+                                console.log('Current Grid State:');
+                                grid.forEach((row, i) => {
+                                    console.log(`Row ${i}:`, row);
+                                });
+
+                                // Get the assets data - this is what we'll send
+                                const arrangementData = getArrangementData();
+                                console.log('Arrangement data for transaction:', arrangementData);
+
+                                if (arrangementData.length === 0) {
+                                    txError = 'no assets to send';
+                                    showTxModal = true;
+                                    return;
+                                }
+
+                                // Format assets for transaction
+                                const assets = arrangementData.map(item => ({
+                                    unit: `${UNSIGS_POLICY_ID}${item.hexAssetName}`,
+                                    quantity: '1'
+                                }));
+
+                                console.log('Assets to send:', assets);
+
+                                // Get destination address (user's own address)
+                                const addresses = await wallet.getUsedAddresses();
+                                const changeAddress = await wallet.getChangeAddress();
+
+                                // Create metadata - must match exactly what's being sent
+                                const metadata = createMetadata();
+                                console.log('Transaction metadata:', metadata);
+
+                                // Verify that assets and metadata match
+                                console.log('Verification - asset count:', assets.length, 'metadata positions count:', metadata[674].arrangement.positions.length);
+                                if (assets.length !== metadata[674].arrangement.positions.length) {
+                                    console.error('Mismatch between assets and metadata position count!');
+                                }
+
+                                // Build transaction
+                                console.log('Building transaction...');
+                                // @ts-ignore - Mesh SDK import
+                                const { Transaction } = await import('@meshsdk/core');
+
+                                // Create transaction builder
+                                const tx = new Transaction({ initiator: wallet });
+
+                                // Add outputs (assets to send)
+                                tx.sendAssets(changeAddress, assets);
+
+                                // Set metadata
+                                tx.setMetadata(674, metadata[674]);
+
+                                // Build, sign, and submit
+                                console.log('Building unsigned transaction...');
+                                const unsignedTx = await tx.build();
+
+                                console.log('Signing transaction...');
+                                const signedTx = await wallet.signTx(unsignedTx);
+
+                                console.log('Submitting transaction...');
+                                const hash = await wallet.submitTx(signedTx);
+
+                                console.log('Transaction submitted successfully!');
+                                console.log('Transaction hash:', hash);
+
+                                // Save composition to database
+                                try {
+                                    console.log('Saving composition to database...');
+                                    const positionsData = arrangementData.map(item => ({
+                                        unsigIndex: item.unsigId,
+                                        row: item.row,
+                                        column: item.col
+                                    }));
+
+                                    const response = await fetch('/api/db/compositions', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({
+                                            transactionId: hash,
+                                            positions: positionsData
+                                        })
+                                    });
+
+                                    const result = await response.json();
+
+                                    if (result.success) {
+                                        console.log('Composition saved to database successfully!', result);
+                                    } else {
+                                        console.error('Failed to save composition to database:', result.error);
+                                    }
+                                } catch (dbErr) {
+                                    console.error('Error saving composition to database:', dbErr);
+                                }
+
+                                txResult = { hash };
+                                showTxModal = true;
+
+                            } catch (err) {
+                                console.error('Transaction error:', err);
+                                txError = err instanceof Error ? err.message : String(err);
+                                showTxModal = true;
+                            } finally {
+                                buildingTx = false;
+                            }
+                        }}
+                        aria-label="build transaction">
+                        {buildingTx ? 'building transaction...' : 'build transaction'}
+                    </button>
+                {/if}
             </div>
         </div>
     </div>
@@ -641,7 +617,12 @@ $effect(() => {
             {:else if ownedUnsigs.length === 0}
                 <div class="carousel-empty">no unsigs found</div>
             {:else}
-                <div class="carousel-container">
+                <div class="carousel-container" onwheel={(e) => {
+                    if (e.deltaY !== 0) {
+                        e.preventDefault();
+                        e.currentTarget.scrollLeft += e.deltaY;
+                    }
+                }}>
                     <div class="carousel-track">
                         {#each ownedUnsigs as unsig}
                             <div
@@ -669,6 +650,29 @@ $effect(() => {
     {/if}
 </div>
 
+<Modal bind:showModal={showTxModal}>
+    {#snippet header()}
+        <h3 class="modal-title">
+            {#if txResult}
+                transaction submitted
+            {:else}
+                transaction failed
+            {/if}
+        </h3>
+    {/snippet}
+    {#snippet content()}
+        {#if txResult}
+            <p class="modal-text">transaction hash:</p>
+            <code class="modal-hash">{txResult.hash}</code>
+        {:else if txError}
+            <p class="modal-text">{txError}</p>
+        {/if}
+        <div class="modal-actions">
+            <button class="modal-close-button" onclick={() => showTxModal = false}>close</button>
+        </div>
+    {/snippet}
+</Modal>
+
 <style>
     .composition-builder {
         min-height: 100vh;
@@ -683,16 +687,20 @@ $effect(() => {
         display: flex;
         justify-content: center;
         align-items: center;
-        margin: 2rem 0;
         position: relative;
+    }
+
+    /* Below-grid controls container */
+    .grid-bottom-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        margin-top: 0.75rem;
     }
 
     /* Row Controls - Grouped vertically */
     .row-controls-group {
-        position: absolute;
-        bottom: -50px;
-        left: 50%;
-        transform: translateX(-50%);
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -700,7 +708,6 @@ $effect(() => {
         border: 1px solid var(--border-default);
         padding: 6px 2px;
         border-radius: 20px;
-        z-index: 10;
     }
 
     .button-separator-vertical {
@@ -726,27 +733,13 @@ $effect(() => {
         z-index: 10;
     }
 
-    /* Preview button container below bottom controls */
-    .preview-button-container {
-        position: absolute;
-        bottom: -150px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        justify-content: center;
-        z-index: 10;
-    }
-
-    /* Adjust grid container to ensure space for controls */
+    /* Grid container - sizes itself to fill available space while staying square */
     .composition-grid {
-        width: 100%;
-        max-width: var(--grid-max-width);
-        max-height: var(--grid-max-height);
+        width: min(calc(100vh - 480px), calc(100vw - 160px));
+        height: min(calc(100vh - 480px), calc(100vw - 160px));
+        aspect-ratio: 1;
         position: relative;
         z-index: 5;
-        margin: 0 auto;
-        aspect-ratio: 1/1;
-        margin-bottom: 120px;
         background-color: var(--bg-surface);
         border: 1px solid var(--border-default);
         padding: 2px;
@@ -1003,12 +996,6 @@ $effect(() => {
         cursor: not-allowed;
     }
 
-    @media (max-height: 768px) {
-        .composition-grid {
-            max-width: min(400px, calc(100vh - 400px));
-            max-height: min(400px, calc(100vh - 400px));
-        }
-    }
 
     @media (max-width: 768px) {
         .unsigs-carousel {
@@ -1016,8 +1003,52 @@ $effect(() => {
         }
     }
 
-    :root {
-        --grid-max-width: 400px;
-        --grid-max-height: 400px;
+    /* Transaction modal styles */
+    .modal-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: var(--text-lg);
+        font-weight: 400;
+        color: var(--text-primary);
     }
-</style> 
+
+    .modal-text {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: var(--text-sm);
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .modal-hash {
+        display: block;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: var(--text-sm);
+        color: var(--text-primary);
+        background-color: var(--bg-raised);
+        border: 1px solid var(--border-default);
+        padding: 0.75rem;
+        border-radius: 4px;
+        word-break: break-all;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 1.5rem;
+    }
+
+    .modal-close-button {
+        font-family: 'JetBrains Mono', monospace;
+        background-color: transparent;
+        color: var(--text-primary);
+        border: 1px solid var(--border-default);
+        padding: 0.5rem 1.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .modal-close-button:hover {
+        border-color: var(--accent);
+        background-color: var(--accent-dim);
+    }
+</style>

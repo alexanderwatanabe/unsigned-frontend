@@ -236,7 +236,7 @@
     <!-- Title overlay -->
     <div class="hero-overlay">
       <h1 class="hero-title font-serif italic">unsigned_algorithms</h1>
-      <p class="hero-subtitle">31,119 generative color fields on cardano</p>
+      <p class="hero-subtitle">31,119 generative color fields</p>
     </div>
 
     <!-- Unsig info (bottom right) -->

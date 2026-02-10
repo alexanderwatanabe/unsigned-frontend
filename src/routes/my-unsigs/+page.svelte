@@ -39,15 +39,16 @@
   let downloadAllCancelled = $state(false);
   let downloadAllAbort: AbortController | null = $state(null);
   let downloadAllError = $state('');
-  let downloadAllState = $state<'generating' | 'done' | 'error'>('generating');
+  let downloadAllSize = $state(4096);
+  let downloadAllState = $state<'confirm' | 'generating' | 'done' | 'error'>('confirm');
 
   let gridSize = $derived(Math.sqrt(itemsPerPage));
   let totalPages = $derived(Math.ceil(unsigIndices.length / itemsPerPage));
 
   function getImageResolution(items: number): number {
     if (items === 1) return 1024;
-    if (items <= 16) return 256;
-    return 128; // Default to 128 for all larger grids
+    if (items > 64) return 128;
+    return 256;
   }
 
   function getImageUrl(index: number, resolution: number): string {
@@ -256,17 +257,20 @@
     }
   }
 
-  async function downloadAll() {
+  function requestDownloadAll() {
     if (!ownedUnsigs.length) return;
+    downloadAllState = 'confirm';
+    downloadAllError = '';
+    showDownloadModal = true;
+  }
 
-    const size = 4096;
+  async function downloadAll(size: number) {
     downloadAllTotal = ownedUnsigs.length;
     downloadAllCurrent = 0;
     downloadAllProgress = 0;
     downloadAllCancelled = false;
     downloadAllError = '';
     downloadAllState = 'generating';
-    showDownloadModal = true;
 
     const abort = new AbortController();
     downloadAllAbort = abort;
@@ -373,7 +377,7 @@
     />
 
     <div class="download-all-container">
-      <button class="download-all-btn" onclick={downloadAll}>
+      <button class="download-all-btn" onclick={requestDownloadAll}>
         download all ({unsigCount})
       </button>
     </div>
@@ -382,7 +386,9 @@
 
 <Modal bind:showModal={showDownloadModal}>
   {#snippet header()}
-    {#if downloadAllState === 'generating'}
+    {#if downloadAllState === 'confirm'}
+      <h3 class="modal-title font-serif">download collection</h3>
+    {:else if downloadAllState === 'generating'}
       <h3 class="modal-title font-serif">downloading collection</h3>
     {:else if downloadAllState === 'done'}
       <h3 class="modal-title font-serif">download complete</h3>
@@ -391,8 +397,26 @@
     {/if}
   {/snippet}
   {#snippet content()}
-    {#if downloadAllState === 'generating'}
-      <p class="modal-text">rendering unsig #{downloadAllCurrentId} ({downloadAllCurrent} of {downloadAllTotal})</p>
+    {#if downloadAllState === 'confirm'}
+      <p class="modal-text">choose resolution for {unsigCount} unsigs</p>
+      <div class="resolution-options">
+        {#each [2048, 4096, 8192, 16384] as size}
+          <button
+            class="resolution-btn"
+            class:selected={downloadAllSize === size}
+            onclick={() => { downloadAllSize = size; }}
+          >{size.toLocaleString()} px</button>
+        {/each}
+      </div>
+      {#if downloadAllSize > 4096}
+        <p class="modal-warning">larger sizes require more memory and time per image</p>
+      {/if}
+      <div class="modal-actions">
+        <button class="modal-btn" onclick={() => { showDownloadModal = false; }}>cancel</button>
+        <button class="modal-btn modal-btn-primary" onclick={() => downloadAll(downloadAllSize)}>download</button>
+      </div>
+    {:else if downloadAllState === 'generating'}
+      <p class="modal-text">rendering unsig #{downloadAllCurrentId} ({downloadAllCurrent} of {downloadAllTotal}) at {downloadAllSize.toLocaleString()}px</p>
       <div class="progress-bar">
         <div class="progress-fill" style="width: {downloadAllProgress}%"></div>
       </div>
@@ -401,7 +425,7 @@
         <button class="modal-btn" onclick={() => { downloadAllCancelled = true; downloadAllAbort?.abort(); showDownloadModal = false; }}>cancel</button>
       </div>
     {:else if downloadAllState === 'done'}
-      <p class="modal-text">{downloadAllTotal} unsigs downloaded at 4,096px</p>
+      <p class="modal-text">{downloadAllTotal} unsigs downloaded at {downloadAllSize.toLocaleString()}px</p>
       <div class="modal-actions">
         <button class="modal-btn" onclick={() => { showDownloadModal = false; }}>close</button>
       </div>
@@ -569,5 +593,51 @@
     color: var(--text-dim);
     font-size: var(--text-xs);
     margin-top: var(--space-sm);
+  }
+
+  .resolution-options {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: center;
+    margin-bottom: var(--space-md);
+  }
+
+  .resolution-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-default);
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: var(--text-sm);
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+
+  .resolution-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-focus);
+  }
+
+  .resolution-btn.selected {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .modal-btn-primary {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .modal-btn-primary:hover {
+    color: var(--text-primary);
+    background: var(--accent-dim);
+  }
+
+  .modal-warning {
+    color: var(--text-dim);
+    font-size: var(--text-xs);
+    text-align: center;
+    margin-bottom: var(--space-sm);
   }
 </style> 
