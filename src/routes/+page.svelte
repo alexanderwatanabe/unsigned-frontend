@@ -551,7 +551,8 @@
     }
 
     .hero-overlay {
-      bottom: var(--space-lg);
+      top: var(--space-md);
+      bottom: auto;
       left: var(--space-lg);
     }
 

@@ -32,7 +32,7 @@
   let layers = $state<LayerState[]>([]);
   let activeLayerIndices = $state<Set<number>>(new Set());
   let showDownloadModal = $state(false);
-  let downloadModalState = $state<'confirm' | 'generating' | 'error'>('generating');
+  let downloadModalState = $state<'generating' | 'error'>('generating');
   let generationProgress = $state(0);
   let pendingDownloadSize = $state(0);
   let downloadError = $state('');
@@ -43,6 +43,8 @@
 
   let canvas: HTMLCanvasElement;
   let imageContainerEl: HTMLElement;
+  let touchStartX = 0;
+  let touchStartY = 0;
 
   function generateLayerId(): string {
     return `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -83,6 +85,20 @@
 
   function handleMouseLeave() {
     showCursorLight = false;
+  }
+
+  function handleTouchStart(e: TouchEvent) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }
+
+  function handleTouchEnd(e: TouchEvent) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) navigateToNft(Number(currentId) + 1);
+      else navigateToNft(Number(currentId) - 1);
+    }
   }
 
   // Initialize active layers when unsig changes
@@ -306,13 +322,7 @@
     pendingDownloadSize = size;
     generationProgress = 0;
     downloadError = '';
-
-    if (size > 4096) {
-      downloadModalState = 'confirm';
-      showDownloadModal = true;
-    } else {
-      startDownload(size);
-    }
+    startDownload(size);
   }
 
   async function startDownload(size: number) {
@@ -380,7 +390,9 @@
   <div class="content-wrapper">
     <h1 class="page-title font-serif" class:hidden={isFullscreen}>unsigned_algorithm #{paddedId}</h1>
 
-    <div class="image-section" class:fullscreen={isFullscreen}>
+    <div class="image-section" class:fullscreen={isFullscreen}
+         ontouchstart={handleTouchStart}
+         ontouchend={handleTouchEnd}>
       <!-- Nav arrows within image bounds -->
       <a href="/nft/{Number(currentId) - 1}"
          class="nav-button prev"
@@ -438,10 +450,10 @@
             <thead>
               <tr>
                 <th> </th>
-                <th>colors</th>
-                <th>distributions</th>
-                <th>multipliers</th>
-                <th>rotations</th>
+                <th>color</th>
+                <th>distribution</th>
+                <th>multiplier</th>
+                <th>rotation</th>
               </tr>
             </thead>
             <tbody>
@@ -476,22 +488,14 @@
 
 <Modal bind:showModal={showDownloadModal}>
   {#snippet header()}
-    {#if downloadModalState === 'confirm'}
-      <h3 class="modal-title font-serif">large image warning</h3>
-    {:else if downloadModalState === 'generating'}
+    {#if downloadModalState === 'generating'}
       <h3 class="modal-title font-serif">generating image</h3>
     {:else}
       <h3 class="modal-title font-serif">error</h3>
     {/if}
   {/snippet}
   {#snippet content()}
-    {#if downloadModalState === 'confirm'}
-      <p class="modal-text">generating a {pendingDownloadSize.toLocaleString()} x {pendingDownloadSize.toLocaleString()} image requires significant memory and processing power. this might take several minutes.</p>
-      <div class="modal-actions">
-        <button class="modal-btn" onclick={() => { showDownloadModal = false; }}>cancel</button>
-        <button class="modal-btn modal-btn-primary" onclick={() => startDownload(pendingDownloadSize)}>continue</button>
-      </div>
-    {:else if downloadModalState === 'generating'}
+    {#if downloadModalState === 'generating'}
       <p class="modal-text">rendering unsig #{paddedId} at {pendingDownloadSize.toLocaleString()}px</p>
       <div class="progress-bar">
         <div class="progress-fill" style="width: {generationProgress}%"></div>
@@ -517,6 +521,7 @@
     position: relative;
     background: var(--bg-void);
     min-height: 100vh;
+    overflow-x: hidden;
   }
 
   .content-wrapper {
@@ -694,6 +699,7 @@
     border-radius: 4px;
     padding: var(--space-md);
     border: 1px solid var(--border-subtle);
+    overflow-x: auto;
   }
 
   tbody tr {
@@ -810,11 +816,24 @@
 
   @media (max-width: 768px) {
     .content-wrapper {
-      padding: var(--space-md);
+      padding: var(--space-sm);
     }
 
     .page-title {
       font-size: var(--text-lg);
+    }
+
+    .nav-button {
+      display: none;
+    }
+
+    .properties {
+      padding: var(--space-sm);
+    }
+
+    td, th {
+      padding: var(--space-xs);
+      font-size: var(--text-xs);
     }
   }
 </style>

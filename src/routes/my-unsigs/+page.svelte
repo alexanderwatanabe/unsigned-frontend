@@ -383,9 +383,6 @@
           >{size.toLocaleString()} px</button>
         {/each}
       </div>
-      {#if downloadAllSize > 4096}
-        <p class="modal-warning">larger sizes require more memory and time per image</p>
-      {/if}
       <div class="modal-actions">
         <button class="modal-btn" onclick={() => { showDownloadModal = false; }}>cancel</button>
         <button class="modal-btn modal-btn-primary" onclick={() => downloadAll(downloadAllSize)}>download</button>
@@ -609,10 +606,4 @@
     background: var(--accent-dim);
   }
 
-  .modal-warning {
-    color: var(--text-dim);
-    font-size: var(--text-xs);
-    text-align: center;
-    margin-bottom: var(--space-sm);
-  }
 </style> 

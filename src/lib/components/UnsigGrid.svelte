@@ -14,8 +14,12 @@
   export let loading = false;
   export let gridSize = 5;
   export let imageResolution = 256;
+  export let swappable = false;
+  export let onswap: ((fromIndex: number, toIndex: number) => void) | undefined = undefined;
 
   let gridEl: HTMLElement;
+  let draggingIndex: number | null = null;
+  let dragOverIndex: number | null = null;
 
   function getFullAssetId(hexAssetName: string): string {
     return `${UNSIGS_POLICY_ID}${hexAssetName}`;
@@ -67,12 +71,40 @@
   {/if}
 
   {#if items.length > 0}
-    {#each items as item (item.id)}
+    {#each items as item, index (item.id)}
       <a
         href="/nft/{item.id}"
         class="grid-item"
+        class:dragging={swappable && draggingIndex === index}
+        class:drag-over={swappable && dragOverIndex === index}
         data-hex-asset-name={item.hexAssetName}
         data-full-asset-id={item.hexAssetName ? getFullAssetId(item.hexAssetName) : undefined}
+        draggable={swappable ? 'true' : undefined}
+        ondragstart={swappable ? (e) => {
+          draggingIndex = index;
+          e.dataTransfer?.setData('text/plain', String(index));
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        } : undefined}
+        ondragover={swappable ? (e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          dragOverIndex = index;
+        } : undefined}
+        ondragleave={swappable ? () => {
+          if (dragOverIndex === index) dragOverIndex = null;
+        } : undefined}
+        ondrop={swappable ? (e) => {
+          e.preventDefault();
+          if (draggingIndex !== null && draggingIndex !== index) {
+            onswap?.(draggingIndex, index);
+          }
+          draggingIndex = null;
+          dragOverIndex = null;
+        } : undefined}
+        ondragend={swappable ? () => {
+          draggingIndex = null;
+          dragOverIndex = null;
+        } : undefined}
       >
         {#if item.imageUrl}
           <img src={item.imageUrl} alt={`unsig #${item.id}`} />
@@ -150,6 +182,15 @@
     color: var(--text-primary);
     font-size: var(--text-sm);
     font-weight: 500;
+  }
+
+  .grid-item.dragging {
+    opacity: 0.4;
+  }
+
+  .grid-item.drag-over {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
+    z-index: 2;
   }
 
   .grid-item:hover {

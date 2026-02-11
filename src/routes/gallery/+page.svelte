@@ -562,6 +562,13 @@
     }
   }
 
+  function handleSwap(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    const newItems = [...items];
+    [newItems[fromIndex], newItems[toIndex]] = [newItems[toIndex], newItems[fromIndex]];
+    items = newItems;
+  }
+
   // Update exitRandomMode to reset view
   function exitRandomMode() {
     currentView = 'all';
@@ -1016,6 +1023,8 @@
           loading={isLoading}
           {gridSize}
           imageResolution={getImageResolution()}
+          swappable={randomMode}
+          onswap={handleSwap}
         />
       </div>
 
