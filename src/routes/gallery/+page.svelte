@@ -133,6 +133,12 @@
   // Random seed for reproducible random views
   let randomSeed = $state<number | null>(null);
 
+  // Permutation tracking for shareable compositions
+  // permutation[i] = original position index whose item is now at position i
+  let permutation = $state<number[]>([]);
+  // Pending perm from URL, consumed on first render of the matching view
+  let pendingPerm = $state<string | null>(null);
+
   // Add animation state
   let activeAnimation = $state<string | null>(null);
 
@@ -477,11 +483,33 @@
     if (newSize === itemsPerPage) return;
 
     manuallySetPageSize = true;  // Mark that size was manually set
-    const currentFirstItem = (currentPage - 1) * itemsPerPage;
-    currentPage = Math.floor(currentFirstItem / newSize) + 1;
     itemsPerPage = newSize;
-    // loadPage already calls syncUrlParams
-    loadPage(currentPage);
+
+    if (randomMode && randomSeed !== null) {
+      // Same seed, different count — prefix is stable
+      const fullIndexes = getRandomIndexes(newSize, TOTAL_ITEMS, randomSeed);
+      const dim = getImageResolution();
+      if (newSize < items.length) {
+        // Reducing: drop from end, trim permutation
+        items = items.slice(0, newSize);
+        permutation = permutation.slice(0, newSize);
+      } else {
+        // Increasing: keep existing, append new items with identity permutation
+        const newIndexes = fullIndexes.slice(items.length);
+        items = [...items, ...newIndexes.map(index => ({
+          id: index,
+          imageUrl: '',
+          properties: { colors: [], distributions: [], multipliers: [], rotations: [] }
+        }))];
+        permutation = [...permutation, ...Array.from({ length: newSize - permutation.length }, (_, i) => permutation.length + i)];
+        generateImages(newIndexes, dim);
+      }
+      syncUrlParams();
+    } else {
+      const currentFirstItem = (currentPage - 1) * itemsPerPage;
+      currentPage = Math.floor(currentFirstItem / newSize) + 1;
+      loadPage(currentPage);
+    }
   }
 
   // Add this function to reset manual page size flag
@@ -513,9 +541,10 @@
     randomMode = false;
     currentPage = 1;
     filteredTotalItems = noLinerIndices.length;
-    // Clear filters when entering no-liner mode
+    // Clear filters and permutation when entering no-liner mode
     activeFilters = [];
     pendingFilters = [];
+    permutation = [];
     syncUrlParams();
   }
 
@@ -527,9 +556,10 @@
       isLoading = true;
       currentView = 'random';
       randomMode = true;
-      // Clear filters when entering random mode
+      // Clear filters and permutation when entering random mode
       activeFilters = [];
       pendingFilters = [];
+      permutation = [];
 
       // Generate a new seed for this random view
       const seed = Math.floor(Math.random() * 2147483647);
@@ -555,6 +585,7 @@
         }
       }));
 
+      permutation = Array.from({ length: randomIndexes.length }, (_, i) => i);
       generateImages(randomIndexes, dim);
       syncUrlParams();
     } finally {
@@ -567,6 +598,12 @@
     const newItems = [...items];
     [newItems[fromIndex], newItems[toIndex]] = [newItems[toIndex], newItems[fromIndex]];
     items = newItems;
+    if (permutation.length > 0) {
+      const newPerm = [...permutation];
+      [newPerm[fromIndex], newPerm[toIndex]] = [newPerm[toIndex], newPerm[fromIndex]];
+      permutation = newPerm;
+    }
+    syncUrlParams();
   }
 
   // Update exitRandomMode to reset view
@@ -574,6 +611,7 @@
     currentView = 'all';
     randomMode = false;
     randomSeed = null;
+    permutation = [];
     currentPage = 1;
     // loadPage calls syncUrlParams
     loadPage(1);
@@ -592,6 +630,13 @@
 
   // Add drawer state
   let isDrawerOpen = $state(false);
+  let shareCopied = $state(false);
+
+  function handleShare() {
+    navigator.clipboard.writeText(window.location.href);
+    shareCopied = true;
+    setTimeout(() => shareCopied = false, 2000);
+  }
 
   // Add derived state for image resolution
   function getImageResolution(): number {
@@ -638,6 +683,12 @@
     if (itemsPerPage !== 25) params.set('size', String(itemsPerPage));
     if (idSearch) params.set('search', idSearch);
     if (currentView === 'random' && randomSeed !== null) params.set('seed', String(randomSeed));
+    if (permutation.length > 0) {
+      const diffs = permutation
+        .map((orig, pos) => orig !== pos ? `${pos}-${orig}` : null)
+        .filter(Boolean);
+      if (diffs.length > 0) params.set('perm', diffs.join('.'));
+    }
 
     activeFilters.forEach(f => {
       params.append('f', serializeFilter(f));
@@ -692,18 +743,40 @@
 
       const randomIndexes = getRandomIndexes(itemsPerPage, TOTAL_ITEMS, seed);
       const dim = getImageResolution();
-      items = randomIndexes.map(index => ({
+      let randomItems = randomIndexes.map(index => ({
         id: index,
         imageUrl: '',
         properties: { colors: [], distributions: [], multipliers: [], rotations: [] }
       }));
-      queueMicrotask(() => generateImages(randomIndexes, dim));
+
+      // Apply permutation from URL
+      const perm = Array.from({ length: randomItems.length }, (_, i) => i);
+      const permParam = params.get('perm');
+      if (permParam) {
+        permParam.split('.').forEach(entry => {
+          const [pos, orig] = entry.split('-').map(Number);
+          if (!isNaN(pos) && !isNaN(orig) && pos < perm.length && orig < perm.length) {
+            perm[pos] = orig;
+          }
+        });
+        const original = [...randomItems];
+        perm.forEach((origPos, newPos) => {
+          randomItems[newPos] = original[origPos];
+        });
+      }
+      permutation = perm;
+
+      items = randomItems;
+      const finalIndexes = randomItems.map(item => item.id);
+      queueMicrotask(() => generateImages(finalIndexes, dim));
     } else if (viewParam === 'noliners') {
       currentView = 'noliners';
       filteredTotalItems = noLinerIndices.length;
+      pendingPerm = params.get('perm');
     } else if (viewParam === 'monochromes') {
       currentView = 'monochromes';
       filteredTotalItems = monochromeIndices.length;
+      pendingPerm = params.get('perm');
     }
 
     // Parse page (after view so context is set)
@@ -817,9 +890,10 @@
     randomMode = false;
     currentPage = 1;
     filteredTotalItems = monochromeIndices.length;
-    // Clear filters when entering monochrome mode
+    // Clear filters and permutation when entering monochrome mode
     activeFilters = [];
     pendingFilters = [];
+    permutation = [];
     syncUrlParams();
   }
 
@@ -833,7 +907,7 @@
       const dim = getImageResolution();
 
       filteredTotalItems = indices.length;
-      items = pageIndexes.map(index => ({
+      let pageItems = pageIndexes.map(index => ({
         id: index,
         imageUrl: '',
         properties: allMetadata[index]?.properties || {
@@ -844,7 +918,26 @@
         }
       }));
 
-      queueMicrotask(() => generateImages(pageIndexes, dim));
+      // Apply pending permutation from URL, or reset to identity
+      const perm = Array.from({ length: pageItems.length }, (_, i) => i);
+      if (pendingPerm) {
+        pendingPerm.split('.').forEach(entry => {
+          const [pos, orig] = entry.split('-').map(Number);
+          if (!isNaN(pos) && !isNaN(orig) && pos < perm.length && orig < perm.length) {
+            perm[pos] = orig;
+          }
+        });
+        const original = [...pageItems];
+        perm.forEach((origPos, newPos) => {
+          pageItems[newPos] = original[origPos];
+        });
+        pendingPerm = null;
+      }
+      permutation = perm;
+
+      items = pageItems;
+      const finalIndexes = pageItems.map(item => item.id);
+      queueMicrotask(() => generateImages(finalIndexes, dim));
     }
   });
 
@@ -1023,20 +1116,25 @@
           loading={isLoading}
           {gridSize}
           imageResolution={getImageResolution()}
-          swappable={randomMode}
+          swappable={currentView === 'random' || currentView === 'noliners' || currentView === 'monochromes'}
           onswap={handleSwap}
         />
       </div>
 
-      {#if !randomMode}
-        <Pagination
-          {currentPage}
-          {totalPages}
-          {itemsPerPage}
-          {displayItemsPerPage}
-          onPageChange={loadPage}
-          onItemsPerPageChange={updateItemsPerPage}
-        />
+      <Pagination
+        {currentPage}
+        {totalPages}
+        {itemsPerPage}
+        {displayItemsPerPage}
+        hidePageNav={randomMode}
+        onPageChange={loadPage}
+        onItemsPerPageChange={updateItemsPerPage}
+      />
+
+      {#if currentView === 'random' || currentView === 'noliners' || currentView === 'monochromes'}
+        <button class="share-button" onclick={handleShare}>
+          {shareCopied ? 'copied!' : 'share'}
+        </button>
       {/if}
     </div>
   </div>
@@ -1380,6 +1478,28 @@
   .no-liner-button:hover {
     background: var(--accent-dim);
     border-color: var(--border-focus);
+  }
+
+  /* ── Share Button ── */
+  .share-button {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 80;
+    padding: 0.5rem 1.25rem;
+    border-radius: 2rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .share-button:hover {
+    background: var(--bg-raised);
+    border-color: var(--border-focus);
+    color: var(--text-primary);
   }
 
   /* ── Main Content & Grid ── */

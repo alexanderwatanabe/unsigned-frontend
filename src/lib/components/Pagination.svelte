@@ -3,6 +3,7 @@
   export let totalPages = 1;
   export let itemsPerPage = 25;
   export let displayItemsPerPage = 25;
+  export let hidePageNav = false;
   export let onPageChange = (page: number) => {};
   export let onItemsPerPageChange = (size: number) => {};
 
@@ -10,6 +11,7 @@
 </script>
 
 <div class="pagination-controls">
+  {#if !hidePageNav}
   <div class="pagination">
     <button
       disabled={currentPage === 1}
@@ -47,6 +49,7 @@
       →
     </button>
   </div>
+  {/if}
 
   <div class="items-per-page">
     <span>items per page: {displayItemsPerPage}</span>
