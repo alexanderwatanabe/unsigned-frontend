@@ -19,9 +19,11 @@
     createdAt: string;
   };
   
-  // State
+  // State — initial values captured intentionally from server load, then managed client-side
+  // svelte-ignore state_referenced_locally
   let compositions = $state<Composition[]>(data.compositions || []);
   let loading = $state(false);
+  // svelte-ignore state_referenced_locally
   let error = $state<string | null>(data.error || null);
   let selectedComposition = $state<Composition | null>(null);
   
@@ -136,14 +138,14 @@
                   {@const cell = getCellContent(composition, rowIndex, colIndex)}
                   <div class="grid-cell">
                     {#if cell}
-                      <div class="relative group">
-                        <img 
+                      <div class="cell-content">
+                        <img
                           src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/256/{cell.unsigIndex.toString().padStart(5, '0')}.png"
                           alt="unsig {cell.unsigIndex}"
                           class="w-full h-full object-cover"
                         />
-                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center z-10 opacity-0 group-hover:opacity-100">
-                          <a href="/nft/{cell.unsigIndex}" class="text-white font-mono text-sm">
+                        <div class="cell-overlay">
+                          <a href="/nft/{cell.unsigIndex}" class="cell-link">
                             #{cell.unsigIndex.toString().padStart(5, '0')}
                           </a>
                         </div>
@@ -176,7 +178,7 @@
           
           <!-- Transaction ID -->
           <div class="transaction-id-container">
-            <span class="transaction-id">{formatTxid(composition.transactionId, true)}</span>
+            <a class="transaction-id" href="/arrangements/{composition.transactionId}">{formatTxid(composition.transactionId, true)}</a>
             <button 
               class="copy-button" 
               onclick={() => {
@@ -244,13 +246,33 @@
     position: relative;
   }
 
-  .grid-cell .group {
+  .cell-content {
     width: 100%;
     height: 100%;
+    position: relative;
     cursor: pointer;
   }
 
-  .grid-cell a {
+  .cell-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.15s;
+    z-index: 10;
+  }
+
+  .grid-cell:hover .cell-overlay {
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 1;
+  }
+
+  .cell-link {
+    color: white;
+    font-size: var(--text-sm);
     text-decoration: none;
   }
 
@@ -270,6 +292,14 @@
   .transaction-id {
     font-size: var(--text-xs);
     color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: var(--border-default);
+  }
+
+  .transaction-id:hover {
+    color: var(--text-primary);
+    text-decoration-color: var(--text-primary);
   }
 
   .transaction-id-container {
@@ -312,12 +342,7 @@
       grid-template-columns: repeat(var(--cols), 96px) !important;
     }
 
-    .grid-cell .group {
-      width: 100%;
-      height: 100%;
-    }
-
-    .grid-cell a {
+    .cell-link {
       font-size: 10px;
     }
   }
