@@ -121,7 +121,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `composition-${composition.transactionId.substring(0, 8)}.png`;
+      a.download = `composition-${composition.transactionId}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
