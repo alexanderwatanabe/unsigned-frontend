@@ -51,7 +51,7 @@
   let downloadStatus = $state('');
   let abortController: AbortController | null = null;
 
-  const TILE_SIZE = 2048;
+  const TILE_SIZE = 4096;
 
   async function downloadComposition() {
     const { rows, cols } = dimensions;
