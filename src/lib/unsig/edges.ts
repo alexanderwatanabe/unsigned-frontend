@@ -279,3 +279,205 @@ export function deduplicateChains(chains: Chain[]): Chain[] {
 
 	return result;
 }
+
+// ── Grid (N×M) search ────────────────────────────────────────────────
+
+export interface Grid {
+	rows: number;
+	cols: number;
+	cells: number[][]; // cells[row][col] = unsig ID
+}
+
+/**
+ * Find N×M grids where every adjacent pair of cells has matching edges.
+ *
+ * @param rows        Grid height
+ * @param cols        Grid width
+ * @param edgeIndex   Precomputed edge index
+ * @param anchorIds   The first cell (0,0) must come from these IDs
+ * @param candidatePool  If provided, ALL cells must come from this set.
+ *                       If null, any unsig from the index may fill non-anchor cells.
+ * @param maxResults     Stop after this many grids (default 50)
+ * @param maxIterations  Computation budget to avoid blocking (default 500K)
+ */
+export function findGrids(
+	rows: number,
+	cols: number,
+	edgeIndex: EdgeIndex,
+	anchorIds: number[],
+	candidatePool: Set<number> | null,
+	maxResults = 50,
+	maxIterations = 500_000,
+): Grid[] {
+	if (rows < 1 || cols < 1) return [];
+	// 1×1 grids are trivial — skip
+	if (rows === 1 && cols === 1) return [];
+
+	const results: Grid[] = [];
+	const grid: number[][] = Array.from({ length: rows }, () =>
+		Array(cols).fill(-1),
+	);
+	const used = new Set<number>();
+	const seen = new Set<string>();
+	let iterations = 0;
+
+	function solve(pos: number): boolean {
+		if (++iterations > maxIterations) return true;
+
+		const r = Math.floor(pos / cols);
+		const c = pos % cols;
+
+		if (r >= rows) {
+			const key = grid.map((row) => row.join(',')).join(';');
+			if (!seen.has(key)) {
+				seen.add(key);
+				results.push({ rows, cols, cells: grid.map((row) => [...row]) });
+			}
+			return results.length >= maxResults;
+		}
+
+		let candidates: number[];
+
+		if (r === 0 && c === 0) {
+			candidates = anchorIds.filter((id) => !used.has(id));
+		} else {
+			let fromLeft: number[] | null = null;
+			let fromTop: number[] | null = null;
+
+			if (c > 0) {
+				fromLeft = findEdgeMatches(grid[r][c - 1], 'east', edgeIndex);
+			}
+			if (r > 0) {
+				fromTop = findEdgeMatches(grid[r - 1][c], 'south', edgeIndex);
+			}
+
+			if (fromLeft && fromTop) {
+				const topSet = new Set(fromTop);
+				candidates = fromLeft.filter((id) => topSet.has(id));
+			} else if (fromLeft) {
+				candidates = fromLeft;
+			} else {
+				candidates = fromTop!;
+			}
+
+			candidates = candidates.filter((id) => !used.has(id));
+			if (candidatePool) {
+				candidates = candidates.filter((id) => candidatePool.has(id));
+			}
+		}
+
+		for (const id of candidates) {
+			grid[r][c] = id;
+			used.add(id);
+			if (solve(pos + 1)) return true;
+			grid[r][c] = -1;
+			used.delete(id);
+		}
+
+		return false;
+	}
+
+	solve(0);
+	return results;
+}
+
+// ── Unified arrangement type ─────────────────────────────────────────
+
+export interface Arrangement {
+	rows: number;
+	cols: number;
+	cells: number[][]; // cells[row][col] = unsig ID
+	ownershipPct: number; // 0-100, percentage of cells owned
+	ownedCount: number;
+	totalCount: number;
+}
+
+/**
+ * Find all arrangements (1D chains + 2D grids) for owned unsigs,
+ * extending with the full collection where possible.
+ * Results are sorted by ownership percentage descending.
+ */
+export function findAllArrangements(
+	ownedIds: number[],
+	edgeIndex: EdgeIndex,
+	maxGridSize = 4,
+): Arrangement[] {
+	const ownedSet = new Set(ownedIds);
+	const arrangements: Arrangement[] = [];
+	const seen = new Set<string>();
+
+	function addArrangement(grid: Grid) {
+		// Canonical key: sorted cell IDs + dimensions
+		const key = `${grid.rows}x${grid.cols}:${grid.cells.flat().sort((a, b) => a - b).join(',')}`;
+		if (seen.has(key)) return;
+		seen.add(key);
+
+		const allIds = grid.cells.flat();
+		const ownedCount = allIds.filter((id) => ownedSet.has(id)).length;
+		arrangements.push({
+			...grid,
+			ownershipPct: Math.round((ownedCount / allIds.length) * 100),
+			ownedCount,
+			totalCount: allIds.length,
+		});
+	}
+
+	// 1. Convert chains to arrangements
+	const pairs = findPairsAmongOwned(ownedIds, edgeIndex);
+	if (pairs.length > 0) {
+		const rawChains = pairs.map((pair) =>
+			buildChain(pair, edgeIndex, ownedSet),
+		);
+		for (const chain of deduplicateChains(rawChains)) {
+			const isH = chain.direction === 'horizontal';
+			addArrangement({
+				rows: isH ? 1 : chain.ids.length,
+				cols: isH ? chain.ids.length : 1,
+				cells: isH
+					? [chain.ids]
+					: chain.ids.map((id) => [id]),
+			});
+		}
+	}
+
+	// 2. Search for N×M grids (2×2 up to maxGridSize×maxGridSize)
+	for (let n = 2; n <= maxGridSize; n++) {
+		for (let m = 2; m <= maxGridSize; m++) {
+			if (n * m > ownedIds.length + 50) continue; // skip if absurdly large
+
+			// Owned-only grids
+			const ownedGrids = findGrids(
+				n,
+				m,
+				edgeIndex,
+				ownedIds,
+				ownedSet,
+				20,
+				200_000,
+			);
+			for (const g of ownedGrids) addArrangement(g);
+
+			// Mixed grids (owned anchor, collection fill) — only if owned-only found few
+			if (ownedGrids.length < 5) {
+				const mixedGrids = findGrids(
+					n,
+					m,
+					edgeIndex,
+					ownedIds,
+					null,
+					20,
+					200_000,
+				);
+				for (const g of mixedGrids) addArrangement(g);
+			}
+		}
+	}
+
+	// Sort by ownership % descending, then by total size descending
+	arrangements.sort((a, b) => {
+		if (b.ownershipPct !== a.ownershipPct) return b.ownershipPct - a.ownershipPct;
+		return b.totalCount - a.totalCount;
+	});
+
+	return arrangements;
+}

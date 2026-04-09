@@ -1,13 +1,9 @@
 <script lang="ts">
 	import {
 		getEdgeIndex,
-		findPairsAmongOwned,
-		buildChain,
-		deduplicateChains,
-		findEdgeMatches,
+		findAllArrangements,
 		type EdgeIndex,
-		type Chain,
-		type Direction,
+		type Arrangement,
 	} from '$lib/unsig/edges';
 
 	interface Props {
@@ -21,42 +17,14 @@
 
 	$effect(() => {
 		if (ownedIds.length > 0 && !indexReady) {
-			// Build index on first need — fast (~10ms for 31K unsigs)
 			edgeIndex = getEdgeIndex();
 			indexReady = true;
 		}
 	});
 
-	let chains = $derived.by(() => {
+	let arrangements = $derived.by(() => {
 		if (!edgeIndex || ownedIds.length < 2) return [];
-		const pairs = findPairsAmongOwned(ownedIds, edgeIndex);
-		if (pairs.length === 0) return [];
-
-		const ownedSet = new Set(ownedIds);
-		const rawChains = pairs.map((pair) => buildChain(pair, edgeIndex!, ownedSet));
-		return deduplicateChains(rawChains);
-	});
-
-	// For each chain endpoint, count how many more unsigs could extend it
-	let chainExtensions = $derived.by(() => {
-		if (!edgeIndex) return [];
-		return chains.map((chain) => {
-			const isH = chain.direction === 'horizontal';
-			const lastId = chain.ids[chain.ids.length - 1];
-			const firstId = chain.ids[0];
-			const forwardEdge: Direction = isH ? 'east' : 'south';
-			const backwardEdge: Direction = isH ? 'west' : 'north';
-
-			const forwardMatches = findEdgeMatches(lastId, forwardEdge, edgeIndex!)
-				.filter((id) => !chain.ids.includes(id));
-			const backwardMatches = findEdgeMatches(firstId, backwardEdge, edgeIndex!)
-				.filter((id) => !chain.ids.includes(id));
-
-			return {
-				forward: forwardMatches.length,
-				backward: backwardMatches.length,
-			};
-		});
+		return findAllArrangements(ownedIds, edgeIndex);
 	});
 
 	let ownedSet = $derived(new Set(ownedIds));
@@ -68,57 +36,63 @@
 	function formatId(id: number): string {
 		return `#${id.toString().padStart(5, '0')}`;
 	}
+
+	function sizeLabel(a: Arrangement): string {
+		if (a.rows === 1) return `${a.cols}-chain ↔`;
+		if (a.cols === 1) return `${a.rows}-chain ↕`;
+		return `${a.rows}×${a.cols}`;
+	}
 </script>
 
-{#if chains.length > 0}
+{#if arrangements.length > 0}
 	<div class="pairs-section">
-		<h3 class="pairs-title">
+		<h3 class="section-title">
 			edge matches
-			<span class="pairs-count">
-				{chains.length} {chains.length === 1 ? 'chain' : 'chains'}
+			<span class="section-count">
+				{arrangements.length} {arrangements.length === 1 ? 'arrangement' : 'arrangements'}
 			</span>
 		</h3>
 
-		{#each chains as chain, i}
-			{@const ext = chainExtensions[i]}
-			<div class="chain-block">
-				<div class="chain-meta">
-					<span class="chain-direction">
-						{chain.direction === 'horizontal' ? '↔' : '↕'}
-					</span>
-					<span class="chain-length">
-						{chain.ids.length} unsigs
-					</span>
-					{#if ext && (ext.backward > 0 || ext.forward > 0)}
-						<span class="chain-extensions">
-							· {ext.backward + ext.forward} more can extend
+		{#each arrangements as arr}
+			<div class="arrangement-block">
+				<div class="arrangement-meta">
+					<span class="arrangement-size">{sizeLabel(arr)}</span>
+					<span
+						class="arrangement-ownership"
+						class:full={arr.ownershipPct === 100}
+					>
+						{arr.ownershipPct}% owned
+						<span class="ownership-detail">
+							({arr.ownedCount}/{arr.totalCount})
 						</span>
-					{/if}
+					</span>
 				</div>
 
 				<div
-					class="chain-images"
-					class:vertical={chain.direction === 'vertical'}
+					class="grid-display"
+					style="--grid-cols: {arr.cols}; --grid-rows: {arr.rows}"
 				>
-					{#each chain.ids as id}
-						<a
-							href="/nft/{id}"
-							class="chain-item"
-							class:owned={ownedSet.has(id)}
-						>
-							<img
-								src={imgUrl(id)}
-								alt={formatId(id)}
-								class="chain-img"
-								loading="lazy"
-							/>
-							<div class="chain-item-info">
-								<span class="chain-item-id">{formatId(id)}</span>
-								{#if !ownedSet.has(id)}
-									<span class="chain-item-badge">collection</span>
-								{/if}
-							</div>
-						</a>
+					{#each arr.cells as row}
+						{#each row as id}
+							<a
+								href="/nft/{id}"
+								class="grid-cell"
+								class:owned={ownedSet.has(id)}
+							>
+								<img
+									src={imgUrl(id)}
+									alt={formatId(id)}
+									class="cell-img"
+									loading="lazy"
+								/>
+								<div class="cell-info">
+									<span class="cell-id">{formatId(id)}</span>
+									{#if !ownedSet.has(id)}
+										<span class="cell-badge">collection</span>
+									{/if}
+								</div>
+							</a>
+						{/each}
 					{/each}
 				</div>
 			</div>
@@ -133,7 +107,7 @@
 		border-top: 1px solid var(--border-default);
 	}
 
-	.pairs-title {
+	.section-title {
 		font-family: 'JetBrains Mono', monospace;
 		font-size: var(--text-sm);
 		font-weight: 400;
@@ -144,16 +118,16 @@
 		gap: var(--space-sm);
 	}
 
-	.pairs-count {
+	.section-count {
 		color: var(--text-dim);
 		font-size: var(--text-xs);
 	}
 
-	.chain-block {
-		margin-bottom: var(--space-lg);
+	.arrangement-block {
+		margin-bottom: var(--space-xl);
 	}
 
-	.chain-meta {
+	.arrangement-meta {
 		display: flex;
 		align-items: center;
 		gap: var(--space-sm);
@@ -163,59 +137,50 @@
 		color: var(--text-dim);
 	}
 
-	.chain-direction {
-		font-size: var(--text-sm);
+	.arrangement-size {
+		color: var(--text-secondary);
 	}
 
-	.chain-extensions {
-		color: var(--text-dim);
+	.arrangement-ownership.full {
+		color: var(--accent, #10b981);
 	}
 
-	.chain-images {
-		display: flex;
+	.ownership-detail {
+		opacity: 0.6;
+	}
+
+	.grid-display {
+		display: inline-grid;
+		grid-template-columns: repeat(var(--grid-cols), 128px);
+		grid-template-rows: repeat(var(--grid-rows), auto);
 		gap: 2px;
-		overflow-x: auto;
-		padding-bottom: var(--space-sm);
 	}
 
-	.chain-images.vertical {
-		flex-direction: column;
-		overflow-x: visible;
-		overflow-y: auto;
-		max-height: 80vh;
-		max-width: 200px;
-	}
-
-	.chain-item {
-		flex-shrink: 0;
-		width: 128px;
+	.grid-cell {
 		text-decoration: none;
 		position: relative;
 		transition: transform 0.15s ease;
-	}
-
-	.chain-images.vertical .chain-item {
 		width: 128px;
 	}
 
-	.chain-item:hover {
+	.grid-cell:hover {
 		transform: scale(1.02);
 		z-index: 1;
 	}
 
-	.chain-item.owned {
+	.grid-cell.owned {
 		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
 	}
 
-	.chain-item:not(.owned) {
+	.grid-cell:not(.owned) {
 		opacity: 0.6;
 	}
 
-	.chain-item:not(.owned):hover {
+	.grid-cell:not(.owned):hover {
 		opacity: 1;
 	}
 
-	.chain-img {
+	.cell-img {
 		width: 100%;
 		aspect-ratio: 1;
 		object-fit: cover;
@@ -223,7 +188,7 @@
 		background: black;
 	}
 
-	.chain-item-info {
+	.cell-info {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -231,18 +196,28 @@
 		background: rgba(0, 0, 0, 0.8);
 	}
 
-	.chain-item-id {
+	.cell-id {
 		font-family: 'JetBrains Mono', monospace;
 		font-size: 10px;
 		color: var(--text-secondary);
 	}
 
-	.chain-item-badge {
+	.cell-badge {
 		font-family: 'JetBrains Mono', monospace;
 		font-size: 9px;
 		color: var(--text-dim);
 		padding: 0 3px;
 		border: 1px solid var(--border-default);
 		border-radius: 2px;
+	}
+
+	@media (max-width: 768px) {
+		.grid-display {
+			grid-template-columns: repeat(var(--grid-cols), 96px);
+		}
+
+		.grid-cell {
+			width: 96px;
+		}
 	}
 </style>
