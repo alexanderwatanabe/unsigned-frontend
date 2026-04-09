@@ -5,6 +5,7 @@
   import UnsigGrid from '$lib/components/UnsigGrid.svelte';
   import Pagination from '$lib/components/Pagination.svelte';
   import Modal from '$lib/components/Modal.svelte';
+  import PairsDisplay from '$lib/components/PairsDisplay.svelte';
   import { goto } from '$app/navigation';
   import { getUnsig, unsigs } from '$lib/unsigs';
   import { createUnsig } from '$lib/unsig/generator';
@@ -356,6 +357,10 @@
         download all ({unsigCount})
       </button>
     </div>
+
+    {#if unsigIndices.length >= 2}
+      <PairsDisplay ownedIds={unsigIndices} />
+    {/if}
   {/if}
 </div>
 
