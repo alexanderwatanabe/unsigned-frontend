@@ -2,6 +2,8 @@
   import { browser } from '$app/environment';
   import { unsigs } from '$lib/unsigs';
   import { createWorkerPool } from '$lib/unsig/worker-pool';
+  import { getCachedUrl } from '$lib/unsig/image-cache';
+  import UnsigImage from '$lib/components/UnsigImage.svelte';
   import type { UnsigData } from '$lib/types';
 
   type GridPosition = {
@@ -296,11 +298,15 @@
             {#if cell.unsigId !== null}
               {@const cachedUrl = imageCache.get(cell.unsigId)}
               <div class="cell-image">
-                <img
-                  src={cachedUrl || `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/128/${cell.unsigId.toString().padStart(5, '0')}.png`}
-                  alt="unsig {cell.unsigId}"
-                  draggable="false"
-                />
+                {#if cachedUrl}
+                  <img
+                    src={cachedUrl}
+                    alt="unsig {cell.unsigId}"
+                    draggable="false"
+                  />
+                {:else}
+                  <UnsigImage id={cell.unsigId} dim={128} alt="unsig {cell.unsigId}" />
+                {/if}
               </div>
             {:else}
               <div class="cell-empty"></div>

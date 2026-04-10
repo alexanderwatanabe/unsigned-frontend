@@ -1,7 +1,9 @@
 <script lang="ts">
-let { 
-    unsigIndices = [], 
-    onSelect, 
+import UnsigImage from '$lib/components/UnsigImage.svelte';
+
+let {
+    unsigIndices = [],
+    onSelect,
     onClose,
     selectedUnsigId = null
 } = $props<{
@@ -29,8 +31,9 @@ function toggleDropdown() {
         class="w-full h-full aspect-square bg-gray-50 border border-gray-200 hover:border-black transition-colors relative"
         onclick={toggleDropdown}>
         {#if selectedUnsigId !== null}
-            <img 
-                src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/128/{selectedUnsigId.toString().padStart(5, '0')}.png"
+            <UnsigImage
+                id={selectedUnsigId}
+                dim={128}
                 alt="unsig {selectedUnsigId}"
                 class="w-full h-full object-cover"
             />
@@ -51,8 +54,9 @@ function toggleDropdown() {
                     <button
                         class="aspect-square border hover:border-black transition-colors p-1 bg-white relative group"
                         onclick={() => handleSelect(unsigId)}>
-                        <img
-                            src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/128/{unsigId.toString().padStart(5, '0')}.png"
+                        <UnsigImage
+                            id={unsigId}
+                            dim={128}
                             alt="unsig {unsigId}"
                             class="w-full h-full object-cover"
                         />

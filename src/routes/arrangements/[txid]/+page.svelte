@@ -1,5 +1,6 @@
 <script lang="ts">
   import Modal from '$lib/components/Modal.svelte';
+  import UnsigImage from '$lib/components/UnsigImage.svelte';
   import { getUnsig } from '$lib/unsigs';
   import { generateUnsigAsync } from '$lib/unsig/worker-api';
   import { createUnsig, unsigToImageData } from '$lib/unsig/generator';
@@ -165,8 +166,9 @@
             <div class="grid-cell">
               {#if cell}
                 <div class="relative group">
-                  <img
-                    src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/256/{cell.unsigIndex.toString().padStart(5, '0')}.png"
+                  <UnsigImage
+                    id={cell.unsigIndex}
+                    dim={256}
                     alt="unsig {cell.unsigIndex}"
                     class="w-full h-full object-cover"
                   />
