@@ -3,6 +3,7 @@ import type { UnsigMetadata, OwnedUnsig } from '$lib/types';
 import { BrowserWalletState } from '@meshsdk/svelte';
 import Modal from '$lib/components/Modal.svelte';
 import CompositionGrid from '$lib/components/CompositionGrid.svelte';
+import UnsigImage from '$lib/components/UnsigImage.svelte';
 
 const UNSIGS_POLICY_ID = '0e14267a8020229adc0184dd25fa3174c3f7d6caadcb4425c70e7c04';
 
@@ -352,8 +353,9 @@ function createMetadata() {
                                 ondragstart={() => startDrag(unsig.id, unsig.hexAssetName)}
                                 role="button"
                                 tabindex="0">
-                                <img
-                                    src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/128/{unsig.id.toString().padStart(5, '0')}.png"
+                                <UnsigImage
+                                    id={unsig.id}
+                                    dim={128}
                                     alt="unsig {unsig.id}"
                                     class="w-full h-full object-cover"
                                 />

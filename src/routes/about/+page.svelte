@@ -1,12 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-
-  const S3 = 'https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/256';
-
-  function imgUrl(id: number): string {
-    return `${S3}/${id.toString().padStart(5, '0')}.png`;
-  }
+  import UnsigImage from '$lib/components/UnsigImage.svelte';
 
   let visibleSections = $state<Set<string>>(new Set());
 
@@ -137,7 +132,7 @@
         <div id="colors" class="example-grid cols-3 reveal" class:visible={visibleSections.has('colors')}>
           {#each colorExamples as ex, i}
             <figure style="animation-delay: {i * 100}ms">
-              <img src={imgUrl(ex.id)} alt="unsig #{ex.id.toString().padStart(5, '0')}" loading="lazy" />
+              <UnsigImage id={ex.id} dim={256} alt="unsig #{ex.id.toString().padStart(5, '0')}" />
               <figcaption>{ex.label}</figcaption>
             </figure>
           {/each}
@@ -153,7 +148,7 @@
         <div id="distributions" class="example-grid cols-2 reveal" class:visible={visibleSections.has('distributions')}>
           {#each distributionExamples as ex, i}
             <figure style="animation-delay: {i * 100}ms">
-              <img src={imgUrl(ex.id)} alt="unsig #{ex.id.toString().padStart(5, '0')}" loading="lazy" />
+              <UnsigImage id={ex.id} dim={256} alt="unsig #{ex.id.toString().padStart(5, '0')}" />
               <figcaption>{ex.label}</figcaption>
             </figure>
           {/each}
@@ -169,7 +164,7 @@
         <div id="rotations" class="example-grid cols-3 reveal" class:visible={visibleSections.has('rotations')}>
           {#each rotationExamples as ex, i}
             <figure style="animation-delay: {i * 100}ms">
-              <img src={imgUrl(ex.id)} alt="unsig #{ex.id.toString().padStart(5, '0')}" loading="lazy" />
+              <UnsigImage id={ex.id} dim={256} alt="unsig #{ex.id.toString().padStart(5, '0')}" />
               <figcaption>{ex.label}</figcaption>
             </figure>
           {/each}
@@ -186,7 +181,7 @@
         <div id="multipliers" class="example-grid cols-4 reveal" class:visible={visibleSections.has('multipliers')}>
           {#each multiplierExamples as ex, i}
             <figure style="animation-delay: {i * 100}ms">
-              <img src={imgUrl(ex.id)} alt="unsig #{ex.id.toString().padStart(5, '0')}" loading="lazy" />
+              <UnsigImage id={ex.id} dim={256} alt="unsig #{ex.id.toString().padStart(5, '0')}" />
               <figcaption>{ex.label}</figcaption>
             </figure>
           {/each}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { PageData } from './$types';
+  import UnsigImage from '$lib/components/UnsigImage.svelte';
   
   // Get the data from the server load function
   const { data } = $props<{data: PageData}>();
@@ -139,8 +140,9 @@
                   <div class="grid-cell">
                     {#if cell}
                       <div class="cell-content">
-                        <img
-                          src="https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/256/{cell.unsigIndex.toString().padStart(5, '0')}.png"
+                        <UnsigImage
+                          id={cell.unsigIndex}
+                          dim={256}
                           alt="unsig {cell.unsigIndex}"
                           class="w-full h-full object-cover"
                         />

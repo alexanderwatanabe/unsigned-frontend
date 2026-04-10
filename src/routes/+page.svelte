@@ -3,6 +3,7 @@
   import { browser } from '$app/environment';
   import { unsigs } from '$lib/unsigs';
   import { renderProgressively } from '$lib/unsig/render';
+  import UnsigImage from '$lib/components/UnsigImage.svelte';
 
   const TOTAL_UNSIGS = 31119;
   const HOLD_DURATION = 6000;
@@ -177,22 +178,20 @@
     }
   }
 
-  // Sample grid images
-  function getSampleGridUrls(): string[] {
+  // Sample grid IDs
+  function getSampleGridIds(): number[] {
     const indices: number[] = [];
     while (indices.length < 16) {
       const id = Math.floor(Math.random() * TOTAL_UNSIGS);
       if (!indices.includes(id) && id > 0) indices.push(id);
     }
-    return indices.map(id =>
-      `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/128/${id.toString().padStart(5, '0')}.png`
-    );
+    return indices;
   }
 
-  let sampleUrls = $state<string[]>([]);
+  let sampleIds = $state<number[]>([]);
 
   onMount(() => {
-    sampleUrls = getSampleGridUrls();
+    sampleIds = getSampleGridIds();
 
     // Fade in side rail
     setTimeout(() => { railVisible = true; }, 200);
@@ -298,9 +297,9 @@
   <!-- Secondary section -->
   <section class="explore-section">
     <div class="sample-grid">
-      {#each sampleUrls as url, i}
+      {#each sampleIds as id, i}
         <div class="sample-tile" style="animation-delay: {i * 30}ms">
-          <img src={url} alt="" loading="lazy" />
+          <UnsigImage {id} dim={128} />
         </div>
       {/each}
     </div>

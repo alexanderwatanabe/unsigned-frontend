@@ -5,6 +5,7 @@
 		type EdgeIndex,
 		type Arrangement,
 	} from '$lib/unsig/edges';
+	import UnsigImage from '$lib/components/UnsigImage.svelte';
 
 	interface Props {
 		ownedIds: number[];
@@ -28,10 +29,6 @@
 	});
 
 	let ownedSet = $derived(new Set(ownedIds));
-
-	function imgUrl(id: number): string {
-		return `https://s3.ap-northeast-1.amazonaws.com/unsigs.com/images/256/${id.toString().padStart(5, '0')}.png`;
-	}
 
 	function formatId(id: number): string {
 		return `#${id.toString().padStart(5, '0')}`;
@@ -79,11 +76,11 @@
 								class="grid-cell"
 								class:owned={ownedSet.has(id)}
 							>
-								<img
-									src={imgUrl(id)}
+								<UnsigImage
+									{id}
+									dim={256}
 									alt={formatId(id)}
 									class="cell-img"
-									loading="lazy"
 								/>
 								<div class="cell-info">
 									<span class="cell-id">{formatId(id)}</span>
